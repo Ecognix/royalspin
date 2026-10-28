@@ -478,33 +478,41 @@ export function Color({ amt }) {
   // Load this user's bets for current period from Supabase or memory
   useEffect(() => {
     async function loadPeriodBets() {
-      if (!u?.id) return
+      const curUser = user()
+      if (!curUser) return
       try {
-        const { data } = await supabase
-          .from('color_bets')
-          .select('*')
-          .eq('user_id', u.id)
-          .eq('period_id', id)
-        if (data && data.length) {
-          const mapped = data.map(b => ({
-            id: b.period_id,
-            type: b.bet_type,
-            val: b.bet_value,
-            amt: Number(b.amount)
-          }))
-          setMyBets(mapped)
-          u.cbets = mapped
-        } else if (u.cbets) {
-          setMyBets(u.cbets.filter(b => b.id === id))
-        } else {
-          setMyBets([])
+        if (curUser.id) {
+          const { data } = await supabase
+            .from('color_bets')
+            .select('*')
+            .eq('user_id', curUser.id)
+            .eq('period_id', id)
+          if (data && data.length) {
+            const mapped = data.map(b => ({
+              id: b.period_id,
+              type: b.bet_type,
+              val: b.bet_value,
+              amt: Number(b.amount)
+            }))
+            setMyBets(mapped)
+            curUser.cbets = mapped
+            return
+          }
         }
+        if (curUser.cbets && curUser.cbets.length) {
+          const matching = curUser.cbets.filter(b => b.id === id)
+          if (matching.length) {
+            setMyBets(matching)
+            return
+          }
+        }
+        setMyBets([])
       } catch (e) {
-        if (u.cbets) setMyBets(u.cbets.filter(b => b.id === id))
+        if (curUser.cbets) setMyBets(curUser.cbets.filter(b => b.id === id))
       }
     }
     loadPeriodBets()
-  }, [id, u?.id])
+  }, [id])
 
   const mine = myBets.filter((b) => b.id === id)
 
@@ -545,24 +553,34 @@ export function Color({ amt }) {
   async function bet() {
     if (!sel) return toast('Choose a colour, number or size')
     if (locked) return toast('Betting is locked for the last 5 seconds')
-    const a = place('color', amt); if (!a) return
+    const curUser = user()
+    if (!curUser) return toast('Please login first')
+    const a = place('color', amt)
+    if (!a) return
+
     const newBet = { id, type: sel.type, val: sel.val, amt: a }
-    u.cbets = u.cbets || []
-    u.cbets.push(newBet)
-    setMyBets(prev => [...prev, newBet])
-    try {
-      await supabase.from('color_bets').insert({
-        user_id: u.id,
-        period_id: id,
-        bet_type: sel.type,
-        bet_value: String(sel.val),
-        amount: a,
-        settled: false,
-        win_amount: 0
-      })
-    } catch (err) {
-      console.error('Failed to insert color_bet:', err)
-    }
+    curUser.cbets = curUser.cbets || []
+    curUser.cbets.push(newBet)
+    setMyBets(prev => [...prev.filter(b => b.id === id), newBet])
+
+    // Background insert into color_bets
+    (async () => {
+      try {
+        const betPayload = {
+          user_id: curUser.id,
+          period_id: id,
+          bet_type: sel.type,
+          bet_value: String(sel.val),
+          amount: a,
+          settled: false,
+          win_amount: 0
+        }
+        await supabase.from('color_bets').insert(betPayload)
+      } catch (err) {
+        console.error('Failed to insert color_bet:', err)
+      }
+    })()
+
     toast('Bet placed: ₹' + f(a) + ' on ' + name(sel))
   }
   const name = (b) => { if (!b) return ''; if (b.type === 'num') return 'Number ' + b.val; const s = String(b.val || ''); return s.charAt(0).toUpperCase() + s.slice(1); }

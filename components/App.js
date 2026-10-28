@@ -600,7 +600,19 @@ function Main() {
   const D = useDB()
   const cfg = D?.cfg || {}
 
-  const [me, setM] = useState(() => getMe()), [view, setView] = useState('home'), [game, setGame] = useState(null)
+  const [me, setM] = useState(() => getMe())
+  const [view, setView] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('rs-view') || 'home'
+    }
+    return 'home'
+  })
+  const [game, setGame] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('rs-game') || null
+    }
+    return null
+  })
 
   const [amt, setAmt] = useState(10), [open, setOpen] = useState(false), menuRef = useRef(null)
 
@@ -633,9 +645,26 @@ function Main() {
 
   const isAdmin = u.is_admin === true
 
-  const go = (v, g) => { setView(v); if (g) setGame(g); setOpen(false) }
+  const go = (v, g) => {
+    setView(v)
+    if (g !== undefined) setGame(g)
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('rs-view', v)
+      if (g) sessionStorage.setItem('rs-game', g)
+      else if (v !== 'game') sessionStorage.removeItem('rs-game')
+    }
+    setOpen(false)
+  }
 
-  const logout = () => { setMe(null); setM(null); setView('home') }
+  const logout = () => {
+    setMe(null)
+    setM(null)
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('rs-view')
+      sessionStorage.removeItem('rs-game')
+    }
+    setView('home')
+  }
 
   const Game = COMP[game]
 
@@ -695,7 +724,7 @@ function Main() {
 
         {view === 'game' && Game && <>
 
-          <button onClick={() => go('home')}>← Games</button>
+          <button onClick={() => go('home', null)}>← Games</button>
 
           <div className="card" style={{ marginTop: 10 }}>
 

@@ -74,7 +74,9 @@ export function Wallet({ u, me }) {
     if (!wu.trim() || !(a > 0) || a > u.balance) return toast('Check UPI ID and amount')
     const res = await createRequest('withdraw', a, wu.trim())
     if (res.error) return toast(res.error)
-    setWa(''); toast('Withdrawal requested')
+    setWa('')
+    toast('Withdrawal requested: ₹' + f(a) + ' held')
+    await refreshUser()
     fetchData()
   }
 
