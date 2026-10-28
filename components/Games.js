@@ -558,30 +558,32 @@ export function Color({ amt }) {
     const a = place('color', amt)
     if (!a) return
 
+    const placedOption = name(sel)
     const newBet = { id, type: sel.type, val: sel.val, amt: a }
     curUser.cbets = curUser.cbets || []
     curUser.cbets.push(newBet)
     setMyBets(prev => [...prev.filter(b => b.id === id), newBet])
 
-    // Background insert into color_bets
-    (async () => {
-      try {
-        const betPayload = {
-          user_id: curUser.id,
-          period_id: id,
-          bet_type: sel.type,
-          bet_value: String(sel.val),
-          amount: a,
-          settled: false,
-          win_amount: 0
-        }
-        await supabase.from('color_bets').insert(betPayload)
-      } catch (err) {
-        console.error('Failed to insert color_bet:', err)
-      }
-    })()
+    // Clear selection so the button and buttons reset cleanly
+    setSel(null)
 
-    toast('Bet placed: ₹' + f(a) + ' on ' + name(sel))
+    // Insert into color_bets
+    try {
+      const betPayload = {
+        user_id: curUser.id,
+        period_id: id,
+        bet_type: newBet.type,
+        bet_value: String(newBet.val),
+        amount: a,
+        settled: false,
+        win_amount: 0
+      }
+      await supabase.from('color_bets').insert(betPayload)
+    } catch (err) {
+      console.error('Failed to insert color_bet:', err)
+    }
+
+    toast('✓ Bet placed: ₹' + f(a) + ' on ' + placedOption)
   }
   const name = (b) => { if (!b) return ''; if (b.type === 'num') return 'Number ' + b.val; const s = String(b.val || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
   return (
