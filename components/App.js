@@ -70,7 +70,7 @@ function NotificationCard({ notif, onDismiss }) {
       <div style={{ 
         minWidth: 280,
         maxWidth: '90vw',
-        padding: '10px 14px', 
+        padding: '18px 14px 0', 
         textAlign: 'center',
         animation: 'slideDown .3s cubic-bezier(.3,1.6,.5,1)',
         zIndex: 100,
@@ -82,7 +82,12 @@ function NotificationCard({ notif, onDismiss }) {
         borderRadius: '10px',
         boxShadow: '0 8px 24px #000a',
         bottom: 'auto',
-        border: 'none'
+        border: 'none',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden'
       }}>
         <button 
           onClick={onDismiss}
@@ -104,28 +109,29 @@ function NotificationCard({ notif, onDismiss }) {
             justifyContent: 'center'
           }}
         >×</button>
-        <div style={{ fontSize: 16, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 2 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 4 }}>
           {isWin ? 'NET PROFIT' : 'NET LOSS'}
         </div>
-        <div style={{ fontSize: 12, color: 'var(--mut)', marginBottom: 4, fontWeight: 500 }}>{title}</div>
+        <div style={{ fontSize: 12, color: 'var(--mut)', marginBottom: 6, fontWeight: 500 }}>{title}</div>
         <div style={{ fontSize: 22, fontWeight: 800, color: isWin ? 'var(--ac)' : 'var(--bad)' }}>
           {message}
         </div>
-        {/* Animated timeout progress bar */}
+        {/* Animated timeout progress bar - joined to bottom edge */}
         <div style={{ 
-          height: 2, 
-          borderRadius: 1, 
+          height: 3, 
+          width: '100%',
           background: 'var(--c2)', 
           overflow: 'hidden',
-          marginTop: 6
+          marginTop: 14,
+          borderRadius: '0 0 10px 10px',
+          flexShrink: 0
         }}>
           <div 
             style={{ 
               height: '100%', 
               width: `${progress}%`, 
               background: isWin ? 'var(--ac)' : 'var(--bad)',
-              transition: 'width 0.05s linear',
-              borderRadius: 1
+              transition: 'width 0.05s linear'
             }} 
           />
         </div>
@@ -138,7 +144,7 @@ function NotificationCard({ notif, onDismiss }) {
     <div style={{ 
       minWidth: 280,
       maxWidth: '90vw',
-      padding: '10px 14px', 
+      padding: '18px 14px 0', 
       textAlign: 'center',
       animation: 'slideDown .3s cubic-bezier(.3,1.6,.5,1)',
       zIndex: 100,
@@ -150,7 +156,12 @@ function NotificationCard({ notif, onDismiss }) {
       borderRadius: '10px',
       boxShadow: '0 8px 24px #000a',
       bottom: 'auto',
-      border: 'none'
+      border: 'none',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden'
     }}>
       <button 
         onClick={onDismiss}
@@ -172,29 +183,30 @@ function NotificationCard({ notif, onDismiss }) {
           justifyContent: 'center'
         }}
       >×</button>
-      <div style={{ fontSize: 16, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 2 }}>
+      <div style={{ fontSize: 16, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 4 }}>
         {isWin ? 'WIN' : 'LOSS'}
       </div>
-      <div style={{ fontSize: 12, color: 'var(--mut)', marginBottom: 4, fontWeight: 500 }}>{title}</div>
+      <div style={{ fontSize: 12, color: 'var(--mut)', marginBottom: 6, fontWeight: 500 }}>{title}</div>
       <div style={{ fontSize: 22, fontWeight: 800, color: isWin ? 'var(--ac)' : 'var(--bad)' }}>
         {isWin ? '+' : ''}₹{message.replace(/[^0-9.]/g, '')}
       </div>
-      {details && <div style={{ fontSize: 11, color: 'var(--mut)', lineHeight: 1.3, fontWeight: 400, marginTop: 4 }}>{details}</div>}
-      {/* Animated timeout progress bar */}
+      {details && <div style={{ fontSize: 11, color: 'var(--mut)', lineHeight: 1.3, fontWeight: 400, marginTop: 6 }}>{details}</div>}
+      {/* Animated timeout progress bar - joined to bottom edge */}
       <div style={{ 
-        height: 2, 
-        borderRadius: 1, 
+        height: 3, 
+        width: '100%',
         background: 'var(--c2)', 
         overflow: 'hidden',
-        marginTop: 6
+        marginTop: 14,
+        borderRadius: '0 0 10px 10px',
+        flexShrink: 0
       }}>
         <div 
           style={{ 
             height: '100%', 
             width: `${progress}%`, 
             background: isWin ? 'var(--ac)' : 'var(--bad)',
-            transition: 'width 0.05s linear',
-            borderRadius: 1
+            transition: 'width 0.05s linear'
           }} 
         />
       </div>

@@ -1,4 +1,4 @@
--- Supabase Schema for Royal Spin
+                        -- Supabase Schema for Royal Spin
 -- Run this in Supabase SQL Editor
 
 -- Enable UUID extension
