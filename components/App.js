@@ -31,7 +31,7 @@ export function Notifications() {
 }
 
 function NotificationCard({ notif, onDismiss }) {
-  const { type, title, message, details, autoClose = 2000 } = notif
+  const { type, title, message, details, autoClose = 2000, center = false } = notif
   const [progress, setProgress] = useState(100)
   const isWin = type === 'win'
   
@@ -58,6 +58,68 @@ function NotificationCard({ notif, onDismiss }) {
       <div className="msg" style={{ animation: 'fin .2s', zIndex: 100 }}>{message}</div>
     )
   }
+  
+  // Center card for Color Trading (net result)
+  if (center) {
+    return (
+      <div className="msg" style={{ 
+        maxWidth: 360, 
+        padding: 20, 
+        textAlign: 'center',
+        animation: 'pop .3s cubic-bezier(.3,1.6,.5,1)',
+        zIndex: 100,
+        position: 'relative'
+      }}>
+        <button 
+          onClick={onDismiss}
+          style={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            width: 24,
+            height: 24,
+            borderRadius: '50%',
+            border: 'none',
+            background: 'var(--c2)',
+            color: 'var(--mut)',
+            cursor: 'pointer',
+            fontSize: 16,
+            lineHeight: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >×</button>
+        <div style={{ fontSize: 22, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 6 }}>
+          {isWin ? 'NET PROFIT' : 'NET LOSS'}
+        </div>
+        <div style={{ fontSize: 14, color: 'var(--tx)', marginBottom: 10, fontWeight: 500 }}>{title}</div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 12 }}>
+          {isWin ? '+' : ''}₹{message.replace(/[^0-9.]/g, '')}
+        </div>
+        {details && <div style={{ fontSize: 12, color: 'var(--mut)', lineHeight: 1.5, fontWeight: 400 }}>{details}</div>}
+        {/* Animated timeout progress bar */}
+        <div style={{ 
+          height: 3, 
+          borderRadius: 2, 
+          background: 'var(--c2)', 
+          overflow: 'hidden',
+          marginTop: 12
+        }}>
+          <div 
+            style={{ 
+              height: '100%', 
+              width: `${progress}%`, 
+              background: isWin ? 'var(--ac)' : 'var(--bad)',
+              transition: 'width 0.05s linear',
+              borderRadius: 2
+            }} 
+          />
+        </div>
+      </div>
+    )
+  }
+  
   // Win/Loss - detailed card at bottom, overlapping game card
   return (
     <div className="winloss-card" style={{ 
