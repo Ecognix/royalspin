@@ -35,8 +35,13 @@ export function Wallet({ u, me }) {
   }, [me])
 
   const fetchData = async () => {
-    const { data: cfgData } = await supabase.from('game_config').select('upi_id').eq('id', 1).maybeSingle()
-    if (cfgData?.upi_id) setUpiId(cfgData.upi_id)
+    try {
+      const cfg = await import('../lib/supabase-db').then(m => m.fetchConfig())
+      if (cfg?.upi) setUpiId(cfg.upi)
+    } catch (e) {
+      const { data: cfgData } = await supabase.from('game_config').select('upi_id').eq('id', 1).maybeSingle()
+      if (cfgData?.upi_id) setUpiId(cfgData.upi_id)
+    }
     const { data: reqs } = await supabase
       .from('requests')
       .select('*')

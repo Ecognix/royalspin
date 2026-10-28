@@ -1,5 +1,7 @@
 'use client'
 
+import Admin from './Admin'
+
 import { useEffect, useRef, useState } from 'react'
 
 import { 
@@ -699,11 +701,22 @@ function Main() {
 
             <b>{GAMES.find((g) => g[0] === game)[1]}</b><p className="small">House edge {cfg.edge?.[game] || 0}%</p>
 
-            <label>Bet amount</label>
-
-            <div className="row"><input type="number" value={amt} onChange={(e) => setAmt(e.target.value)} />
-
-              <button onClick={() => setAmt(Math.max(1, amt / 2))}>½</button><button onClick={() => setAmt(amt * 2)}>2×</button></div>
+                        <label>Bet amount</label>
+            <div className="row">
+              <input type="number" min="1" max="100000" value={amt} onChange={(e) => setAmt(e.target.value)} />
+              <button type="button" onClick={() => setAmt(Math.max(1, Math.floor((+amt || 10) / 2)))}>½</button>
+              <button type="button" onClick={() => setAmt((+amt || 10) * 2)}>2×</button>
+            </div>
+            <div className="row" style={{ marginTop: 6, flexWrap: 'wrap', gap: 6 }}>
+              {[10, 50, 100, 500, 1000].map(v => (
+                <button key={v} type="button" style={{ padding: '4px 10px', fontSize: 12, flex: '1 1 auto' }} onClick={() => setAmt(v)}>
+                  ₹{v}
+                </button>
+              ))}
+              <button type="button" style={{ padding: '4px 10px', fontSize: 12, flex: '1 1 auto' }} onClick={() => setAmt(Math.min(100000, Math.floor(u?.balance || 10)))}>
+                Max
+              </button>
+            </div>
 
             <div style={{ marginTop: 10 }}><Game amt={amt} /></div>
 

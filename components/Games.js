@@ -469,10 +469,44 @@ const cname = (n) => (n === 0 ? 'Red + Violet' : n === 5 ? 'Green + Violet' : n 
 export function Color({ amt }) {
   useDB()
   const [now, setNow] = useState(() => Date.now()), [sel, setSel] = useState(null)
+  const [myBets, setMyBets] = useState([])
   const [, setRndTick] = useState(0)
   useEffect(() => { const iv = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(iv) }, [])
   const id = Math.floor(now / PERIOD), left = Math.ceil(((id + 1) * PERIOD - now) / 1000), locked = left * 1000 <= LOCK
-  const u = user(), mine = (u?.cbets || []).filter((b) => b.id === id)
+  const u = user()
+
+  // Load this user's bets for current period from Supabase or memory
+  useEffect(() => {
+    async function loadPeriodBets() {
+      if (!u?.id) return
+      try {
+        const { data } = await supabase
+          .from('color_bets')
+          .select('*')
+          .eq('user_id', u.id)
+          .eq('period_id', id)
+        if (data && data.length) {
+          const mapped = data.map(b => ({
+            id: b.period_id,
+            type: b.bet_type,
+            val: b.bet_value,
+            amt: Number(b.amount)
+          }))
+          setMyBets(mapped)
+          u.cbets = mapped
+        } else if (u.cbets) {
+          setMyBets(u.cbets.filter(b => b.id === id))
+        } else {
+          setMyBets([])
+        }
+      } catch (e) {
+        if (u.cbets) setMyBets(u.cbets.filter(b => b.id === id))
+      }
+    }
+    loadPeriodBets()
+  }, [id, u?.id])
+
+  const mine = myBets.filter((b) => b.id === id)
 
   // Fetch past period bets from Supabase so history reflects the lowest-bet logic
   useEffect(() => {
@@ -512,8 +546,10 @@ export function Color({ amt }) {
     if (!sel) return toast('Choose a colour, number or size')
     if (locked) return toast('Betting is locked for the last 5 seconds')
     const a = place('color', amt); if (!a) return
+    const newBet = { id, type: sel.type, val: sel.val, amt: a }
     u.cbets = u.cbets || []
-    u.cbets.push({ id, type: sel.type, val: sel.val, amt: a })
+    u.cbets.push(newBet)
+    setMyBets(prev => [...prev, newBet])
     try {
       await supabase.from('color_bets').insert({
         user_id: u.id,
@@ -527,7 +563,7 @@ export function Color({ amt }) {
     } catch (err) {
       console.error('Failed to insert color_bet:', err)
     }
-    toast('Bet placed')
+    toast('Bet placed: ₹' + f(a) + ' on ' + name(sel))
   }
   const name = (b) => { if (!b) return ''; if (b.type === 'num') return 'Number ' + b.val; const s = String(b.val || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
   return (
