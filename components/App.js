@@ -216,30 +216,28 @@ function Auth({ onIn }) {
   const [cp, setCp] = useState('')
   const [un, setUn] = useState('')
   const [loading, setLoading] = useState(false)
-  const [isAdmin, setIsAdmin] = useState(false)
 
   async function go() {
     setLoading(true)
-    if (m === 'signup') {
-      if (!/^\d{10}$/.test(ph)) return toast('Enter a 10 digit number')
-      if (pw.length < 6) return toast('Password min 6 characters')
-      if (pw !== cp) return toast('Passwords do not match')
-      if (un && un.length < 3) return toast('Username min 3 characters')
-      if (isAdminPhone(ph)) return toast('Cannot register as admin')
-      
-      const res = await signup(ph, pw, un || undefined)
-      if (res.error) return toast(res.error)
-      setMe(ph); onIn(ph)
-    } else if (isAdmin) {
-      const res = await adminLogin(ph, pw)
-      if (res.error) return toast(res.error)
-      setMe(ph); onIn(ph)
-    } else {
-      const res = await login(ph, pw)
-      if (res.error) return toast(res.error)
-      setMe(ph); onIn(ph)
+    try {
+      if (m === 'signup') {
+        if (!/^\d{10}$/.test(ph)) return toast('Enter a 10 digit number')
+        if (pw.length < 6) return toast('Password min 6 characters')
+        if (pw !== cp) return toast('Passwords do not match')
+        if (un && un.length < 3) return toast('Username min 3 characters')
+        if (isAdminPhone(ph)) return toast('Cannot register as admin')
+        
+        const res = await signup(ph, pw, un || undefined)
+        if (res.error) return toast(res.error)
+        setMe(ph); onIn(ph)
+      } else {
+        const res = await login(ph, pw)
+        if (res.error) return toast(res.error)
+        setMe(ph); onIn(ph)
+      }
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
@@ -247,9 +245,8 @@ function Auth({ onIn }) {
       <div className="logo" style={{ fontSize: 22 }}>♠ Royal Spin</div>
       <p className="small">Play-money demo. Coins have no cash value.</p>
       <div className="row">
-        <button className={m === 'login' && !isAdmin ? 'p' : ''} onClick={() => { setM('login'); setIsAdmin(false) }}>Login</button>
-        <button className={m === 'signup' ? 'p' : ''} onClick={() => { setM('signup'); setIsAdmin(false) }}>Sign up</button>
-        <button className={isAdmin ? 'p' : ''} onClick={() => { setM('login'); setIsAdmin(true) }}>Admin</button>
+        <button className={m === 'login' ? 'p' : ''} onClick={() => setM('login')}>Login</button>
+        <button className={m === 'signup' ? 'p' : ''} onClick={() => setM('signup')}>Sign up</button>
       </div>
       <label>Mobile number</label>
       <input inputMode="numeric" placeholder="10 digit number" value={ph} onChange={(e) => setPh(e.target.value.trim())} />
@@ -262,9 +259,8 @@ function Auth({ onIn }) {
         <input type="password" placeholder="re-enter password" value={cp} onChange={(e) => setCp(e.target.value)} />
       </>}
       <button className="p" style={{ width: '100%', marginTop: 14 }} onClick={go} disabled={loading}>
-        {loading ? '...' : m === 'login' ? (isAdmin ? 'Admin Login' : 'Login') : 'Create account'}
+        {loading ? '...' : m === 'login' ? 'Login' : 'Create account'}
       </button>
-      {isAdmin && <p className="small" style={{marginTop:10,color:'var(--ac)'}}>Admin phones: 9999999999, 8888888888, 7777777777, 6666666666</p>}
     </div></div>
   )
 }
