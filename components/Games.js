@@ -393,7 +393,15 @@ export function Crash({ amt }) {
     u.cbet = { i: st.st === 'bet' ? st.i : st.ni, a, out: 0 }; commit()
     notify({ type: 'bet', title: 'Bet Placed', message: st.st === 'bet' ? `Bet ₹${f(amt)} placed` : `Bet ₹${f(amt)} queued for next round` })
   }
+  function cancelBet() {
+    if (P && !P.out) {
+      u.bal += P.a; u.wager -= P.a; u.n = Math.max(0, u.n - 1)
+      u.cbet = null; commit()
+      notify({ type: 'bet', title: 'Bet Cancelled', message: `₹${f(P.a)} returned to balance` })
+    }
+  }
   const mine = P && !P.out && P.i === s.i, q = P && !P.out && P.i > s.i, co = mine && s.st === 'fly', crashed = s.st === 'crash'
+  const canCancel = (mine || q) && s.st === 'bet' && !co
   const label = mine ? (co ? `Cash out ₹${f(P.a * s.m)}` : s.st === 'bet' ? 'Bet placed ✓' : 'Settling') : q ? 'Queued for next round ✓' : s.st === 'bet' ? `Bet ₹${f(amt)}` : `Bet next round ₹${f(amt)}`
   const bk = Math.floor(Date.now() / BLK)
   const hist = sched(bk - 1).concat(sched(bk)).filter((r) => r.id < s.i).slice(-12).reverse()
@@ -415,7 +423,10 @@ export function Crash({ amt }) {
             : <><div style={{ color: crashed ? 'var(--bad)' : s.m >= 10 ? '#ffd54f' : 'var(--ac)' }}>{f(s.m)}×</div><div className="small">{crashed ? `Crashed. Next round in ${s.nx}s` : 'Flying'}</div></>}
         </div>
       </div>
-      <button className="p" style={{ ...FULL, marginTop: 10, background: co ? '#ffd54f' : undefined }} onClick={act}>{label}</button>
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <button className="p" style={{ ...FULL, flex: 1, background: co ? '#ffd54f' : canCancel ? 'var(--bad)' : undefined }} onClick={act}>{label}</button>
+        {canCancel && <button className="p" style={{ ...FULL, flex: 1, background: 'var(--bad)' }} onClick={cancelBet}>Cancel Bet</button>}
+      </div>
       <p className="small">One shared live round for everyone, derived from the clock and a public seed.</p>
       {history.length > 0 && (
         <div className="card" style={{ marginTop: 12, background: 'var(--bg)' }}>

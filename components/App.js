@@ -127,51 +127,59 @@ function NotificationCard({ notif, onDismiss }) {
     )
   }
   
-  // Win/Loss - detailed card at bottom, overlapping game card
+  // Win/Loss - detailed card at top, overlapping game card (like Color Trading)
   return (
-    <div className="winloss-card" style={{ 
-      maxWidth: 320, 
-      padding: 14, 
+    <div style={{ 
+      minWidth: 280,
+      maxWidth: '90vw',
+      padding: '10px 14px', 
       textAlign: 'center',
-      animation: 'slideUp .3s cubic-bezier(.3,1.6,.5,1)',
+      animation: 'slideDown .3s cubic-bezier(.3,1.6,.5,1)',
       zIndex: 100,
-      position: 'relative'
+      position: 'fixed',
+      top: 'calc(70px + env(safe-area-inset-top,0px))',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      background: 'var(--c1)',
+      borderRadius: '10px',
+      boxShadow: '0 8px 24px #000a',
+      bottom: 'auto'
     }}>
       <button 
         onClick={onDismiss}
         style={{
           position: 'absolute',
-          top: 6,
-          right: 6,
-          width: 20,
-          height: 20,
+          top: 2,
+          right: 2,
+          width: 18,
+          height: 18,
           borderRadius: '50%',
           border: 'none',
           background: 'var(--c2)',
           color: 'var(--mut)',
           cursor: 'pointer',
-          fontSize: 14,
+          fontSize: 12,
           lineHeight: 1,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center'
         }}
       >×</button>
-      <div style={{ fontSize: 16, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 4 }}>
+      <div style={{ fontSize: 16, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 2 }}>
         {isWin ? 'WIN' : 'LOSS'}
       </div>
-      <div style={{ fontSize: 12, color: 'var(--tx)', marginBottom: 6, fontWeight: 500 }}>{title}</div>
-      <div style={{ fontSize: 16, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 8 }}>
+      <div style={{ fontSize: 12, color: 'var(--mut)', marginBottom: 4, fontWeight: 500 }}>{title}</div>
+      <div style={{ fontSize: 22, fontWeight: 800, color: isWin ? 'var(--ac)' : 'var(--bad)' }}>
         {isWin ? '+' : ''}₹{message.replace(/[^0-9.]/g, '')}
       </div>
-      {details && <div style={{ fontSize: 10, color: 'var(--mut)', lineHeight: 1.4, fontWeight: 400, marginBottom: 8 }}>{details}</div>}
+      {details && <div style={{ fontSize: 11, color: 'var(--mut)', lineHeight: 1.3, fontWeight: 400, marginTop: 4 }}>{details}</div>}
       {/* Animated timeout progress bar */}
       <div style={{ 
-        height: 3, 
-        borderRadius: 2, 
+        height: 2, 
+        borderRadius: 1, 
         background: 'var(--c2)', 
         overflow: 'hidden',
-        marginTop: 4
+        marginTop: 6
       }}>
         <div 
           style={{ 
@@ -179,7 +187,7 @@ function NotificationCard({ notif, onDismiss }) {
             width: `${progress}%`, 
             background: isWin ? 'var(--ac)' : 'var(--bad)',
             transition: 'width 0.05s linear',
-            borderRadius: 2
+            borderRadius: 1
           }} 
         />
       </div>
