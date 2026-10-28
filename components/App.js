@@ -616,6 +616,15 @@ function Main() {
 
   const u = me ? user() : null
 
+  if (me && !u) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
+        <div className="logo" style={{ fontSize: 28, fontWeight: 800 }}>♠ Royal Spin</div>
+        <div style={{ color: 'var(--mut)', fontSize: 13 }}>Loading account...</div>
+      </div>
+    )
+  }
+
   if (!u) return <Auth onIn={setM} />
 
   
