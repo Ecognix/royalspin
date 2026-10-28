@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { place, pay, toast, notify, f, user, refreshUser, supabase } from '../lib/supabase-db'
-import { E, rnd, BETW, G, BLK, sched, cstate, PERIOD, LOCK, colorResult, ballClass } from '../lib/fair'
+import { E, rnd, BETW, G, BLK, sched, cstate, PERIOD, LOCK, colorResult, colorResultCache, computeLowestBetResult, ballClass } from '../lib/fair'
 
 const FULL = { width: '100%' }
 const comb = (n, k) => { if (k < 0 || k > n) return 0; let r = 1; for (let i = 1; i <= k; i++) r = (r * (n - k + i)) / i; return r }
@@ -463,9 +463,41 @@ const sizeCol = (n) => (n >= 5 ? '#f59e0b' : '#3b82f6')
 const cname = (n) => (n === 0 ? 'Red + Violet' : n === 5 ? 'Green + Violet' : n % 2 ? 'Green' : 'Red')
 export function Color({ amt }) {
   const [now, setNow] = useState(() => Date.now()), [sel, setSel] = useState(null)
+  const [, setRndTick] = useState(0)
   useEffect(() => { const iv = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(iv) }, [])
   const id = Math.floor(now / PERIOD), left = Math.ceil(((id + 1) * PERIOD - now) / 1000), locked = left * 1000 <= LOCK
-  const u = user(), mine = (u.cbets || []).filter((b) => b.id === id)
+  const u = user(), mine = (u?.cbets || []).filter((b) => b.id === id)
+
+  // Fetch past period bets from Supabase so history reflects the lowest-bet logic
+  useEffect(() => {
+    async function loadPastResults() {
+      const pastPeriods = Array.from({ length: 15 }, (_, k) => id - 1 - k)
+      const missing = pastPeriods.filter(p => colorResultCache[p] === undefined)
+      if (missing.length === 0) return
+
+      try {
+        const { data: bets } = await supabase
+          .from('color_bets')
+          .select('period_id, bet_type, bet_value, amount')
+          .in('period_id', missing)
+
+        const byPeriod = {}
+        bets?.forEach(b => {
+          if (!byPeriod[b.period_id]) byPeriod[b.period_id] = []
+          byPeriod[b.period_id].push(b)
+        })
+
+        missing.forEach(p => {
+          colorResultCache[p] = computeLowestBetResult(p, byPeriod[p] || [])
+        })
+        setRndTick(t => t + 1)
+      } catch (e) {
+        console.error('Failed to load past color bets:', e)
+      }
+    }
+    loadPastResults()
+  }, [id])
+
   const last = colorResult(id - 1)
   const past = Array.from({ length: 15 }, (_, k) => id - 1 - k)
   const same = (a, b) => a && b && a.type === b.type && a.val === b.val
@@ -476,7 +508,19 @@ export function Color({ amt }) {
     const a = place('color', amt); if (!a) return
     u.cbets = u.cbets || []
     u.cbets.push({ id, type: sel.type, val: sel.val, amt: a })
-    await supabase.from('users').update({ cbets: u.cbets }).eq('phone', u.phone)
+    try {
+      await supabase.from('color_bets').insert({
+        user_id: u.id,
+        period_id: id,
+        bet_type: sel.type,
+        bet_value: String(sel.val),
+        amount: a,
+        settled: false,
+        win_amount: 0
+      })
+    } catch (err) {
+      console.error('Failed to insert color_bet:', err)
+    }
     toast('Bet placed')
   }
   const name = (b) => (b.type === 'num' ? `Number ${b.val}` : b.val[0].toUpperCase() + b.val.slice(1))
@@ -510,7 +554,7 @@ export function Color({ amt }) {
           ))}
         </div>
       </div>
-      <p className="small">Number pays 8.8×. If 0 or 5 lands, it counts as red or green at 1.47× and also as violet. Results come from a public seed and are the same for every player.</p>
+      <p className="small">Number pays 8.8×. If 0 or 5 lands, it counts as red or green at 1.47× and also as violet. Results are determined by the lowest cumulative bet pool in each round across all players.</p>
       <button className="p" style={FULL} onClick={bet} disabled={locked}>{sel ? `Bet ₹${f(amt)} on ${name(sel)}` : 'Choose an option'}</button>
       {mine.length > 0 && <div className="card" style={{ marginTop: 12, marginBottom: 0, background: 'var(--bg)' }}><b>Your bets this period</b>
         <table><tbody>{mine.map((b, i) => <tr key={i}><td>{name(b)}</td><td>₹{f(b.amt)}</td></tr>)}</tbody></table></div>}

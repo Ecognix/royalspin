@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { createClient } from '@supabase/supabase-js'
 import { 
-  toast, f, createRequest, refreshUser,
+  db, toast, f, createRequest, refreshUser,
   getAllUsers, getAllBets, getAllRequests,
   updateRequest, updateUser, updateConfig, isAdminPhone,
   supabase
@@ -26,7 +26,7 @@ export function Wallet({ u, me }) {
   const [wa, setWa] = useState('')
   const [requests, setRequests] = useState([])
   const [transactions, setTransactions] = useState([])
-  const [upiId, setUpiId] = useState('8812862976@ybl')
+  const [upiId, setUpiId] = useState(() => db().cfg?.upi || '8812862976@ybl')
 
   useEffect(() => {
     refreshUser()
@@ -35,6 +35,8 @@ export function Wallet({ u, me }) {
   }, [me])
 
   const fetchData = async () => {
+    const { data: cfgData } = await supabase.from('game_config').select('upi_id').eq('id', 1).maybeSingle()
+    if (cfgData?.upi_id) setUpiId(cfgData.upi_id)
     const { data: reqs } = await supabase
       .from('requests')
       .select('*')
