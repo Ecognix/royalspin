@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { 
-  useDB, getMe, setMe, user, toast, f, 
+  db, useDB, getMe, setMe, user, toast, f, 
   signup, login, adminLogin, refreshUser,
   createRequest, getAllUsers, getAllBets, getAllRequests,
   updateRequest, updateUser, updateConfig, isAdminPhone
@@ -336,14 +336,14 @@ function Main() {
           <h3>Choose a game</h3>
           <div className="tiles">{GAMES.map(([k, n, c]) => {
             const [a, b] = c.split(',')
-            const cfg = db().cfg
+            // using D.cfg
             return <button key={k} className={'tile' + (cfg.on?.[k] ? '' : ' off')} style={{ background: `linear-gradient(135deg,${a},${b})` }} onClick={() => go('game', k)}>
               <svg viewBox="0 -2 100 100">{ICON[k]}</svg><span>{n}</span></button>
           })}</div></>}
         {view === 'game' && Game && <>
           <button onClick={() => go('home')}>← Games</button>
           <div className="card" style={{ marginTop: 10 }}>
-            <b>{GAMES.find((g) => g[0] === game)[1]}</b><p className="small">House edge {db().cfg.edge?.[game] || 0}%</p>
+            <b>{GAMES.find((g) => g[0] === game)[1]}</b><p className="small">House edge {cfg.edge?.[game] || 0}%</p>
             <label>Bet amount</label>
             <div className="row"><input type="number" value={amt} onChange={(e) => setAmt(e.target.value)} />
               <button onClick={() => setAmt(Math.max(1, amt / 2))}>½</button><button onClick={() => setAmt(amt * 2)}>2×</button></div>
