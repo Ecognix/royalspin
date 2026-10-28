@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { place, pay, toast, notify, f, user, commit } from '../lib/db'
+import { place, pay, toast, notify, f, user, refreshUser, supabase } from '../lib/supabase-db'
 import { E, rnd, BETW, G, BLK, sched, cstate, PERIOD, LOCK, colorResult, ballClass } from '../lib/fair'
 
 const FULL = { width: '100%' }
@@ -381,7 +381,7 @@ export function Crash({ amt }) {
     return () => clearInterval(iv)
   }, [])
   const u = user(), P = u.cbet
-  function act() {
+  async function act() {
     const st = cstate()
     if (P && !P.out && P.i === st.i && st.st === 'fly') {
       P.out = 1; const w = P.a * st.m; pay('crash', P.a, w)
@@ -390,13 +390,20 @@ export function Crash({ amt }) {
     }
     if (P && !P.out && P.i >= st.i) return toast('Bet already placed')
     const a = place('crash', amt); if (!a) return
-    u.cbet = { i: st.st === 'bet' ? st.i : st.ni, a, out: 0 }; commit()
+    u.cbet = { i: st.st === 'bet' ? st.i : st.ni, a, out: 0 }
+    await supabase.from('users').update({ cbet: u.cbet }).eq('phone', u.phone)
     notify({ type: 'bet', title: 'Bet Placed', message: st.st === 'bet' ? `Bet ₹${f(amt)} placed` : `Bet ₹${f(amt)} queued for next round` })
   }
-  function cancelBet() {
+  async function cancelBet() {
     if (P && !P.out) {
-      u.bal += P.a; u.wager -= P.a; u.n = Math.max(0, u.n - 1)
-      u.cbet = null; commit()
+      u.balance += P.a; u.total_wagered -= P.a; u.total_bets = Math.max(0, u.total_bets - 1)
+      u.cbet = null
+      await supabase.from('users').update({ 
+        balance: u.balance, 
+        total_wagered: u.total_wagered, 
+        total_bets: u.total_bets,
+        cbet: null
+      }).eq('phone', u.phone)
       notify({ type: 'bet', title: 'Bet Cancelled', message: `₹${f(P.a)} returned to balance` })
     }
   }
@@ -463,11 +470,14 @@ export function Color({ amt }) {
   const past = Array.from({ length: 15 }, (_, k) => id - 1 - k)
   const same = (a, b) => a && b && a.type === b.type && a.val === b.val
   const pick = (type, val) => setSel({ type, val })
-  function bet() {
+  async function bet() {
     if (!sel) return toast('Choose a colour, number or size')
     if (locked) return toast('Betting is locked for the last 5 seconds')
     const a = place('color', amt); if (!a) return
-    u.cbets = u.cbets || []; u.cbets.push({ id, type: sel.type, val: sel.val, amt: a }); commit(); toast('Bet placed')
+    u.cbets = u.cbets || []
+    u.cbets.push({ id, type: sel.type, val: sel.val, amt: a })
+    await supabase.from('users').update({ cbets: u.cbets }).eq('phone', u.phone)
+    toast('Bet placed')
   }
   const name = (b) => (b.type === 'num' ? `Number ${b.val}` : b.val[0].toUpperCase() + b.val.slice(1))
   return (

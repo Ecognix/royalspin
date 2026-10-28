@@ -1,6 +1,11 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { db, useDB, commit, getMe, setMe, user, toast, f, newUser } from '../lib/db'
+import { 
+  useDB, getMe, setMe, user, toast, f, 
+  signup, login, adminLogin, refreshUser,
+  createRequest, getAllUsers, getAllBets, getAllRequests,
+  updateRequest, updateUser, updateConfig, isAdminPhone
+} from '../lib/supabase-db'
 import { tick } from '../lib/tick'
 import { GAMES, ICON } from './meta'
 import { Dice, Limbo, Mines, Keno, Flip, Crash, Color } from './Games'
@@ -76,7 +81,8 @@ function NotificationCard({ notif, onDismiss }) {
         background: 'var(--c1)',
         borderRadius: '10px',
         boxShadow: '0 8px 24px #000a',
-        bottom: 'auto'
+        bottom: 'auto',
+        border: 'none'
       }}>
         <button 
           onClick={onDismiss}
@@ -143,7 +149,8 @@ function NotificationCard({ notif, onDismiss }) {
       background: 'var(--c1)',
       borderRadius: '10px',
       boxShadow: '0 8px 24px #000a',
-      bottom: 'auto'
+      bottom: 'auto',
+      border: 'none'
     }}>
       <button 
         onClick={onDismiss}
@@ -203,31 +210,61 @@ export default function App() {
 }
 
 function Auth({ onIn }) {
-  const [m, setM] = useState('login'), [ph, setPh] = useState(''), [pw, setPw] = useState(''), [cp, setCp] = useState('')
-  function go() {
-    const D = db()
+  const [m, setM] = useState('login')
+  const [ph, setPh] = useState('')
+  const [pw, setPw] = useState('')
+  const [cp, setCp] = useState('')
+  const [un, setUn] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  async function go() {
+    setLoading(true)
     if (m === 'signup') {
       if (!/^\d{10}$/.test(ph)) return toast('Enter a 10 digit number')
       if (pw.length < 6) return toast('Password min 6 characters')
       if (pw !== cp) return toast('Passwords do not match')
-      if (D.users[ph]) return toast('Number already registered')
-      D.users[ph] = newUser(pw, 'Player ' + ph.slice(-4)); commit()
+      if (un && un.length < 3) return toast('Username min 3 characters')
+      if (isAdminPhone(ph)) return toast('Cannot register as admin')
+      
+      const res = await signup(ph, pw, un || undefined)
+      if (res.error) return toast(res.error)
+      setMe(ph); onIn(ph)
+    } else if (isAdmin) {
+      const res = await adminLogin(ph, pw)
+      if (res.error) return toast(res.error)
+      setMe(ph); onIn(ph)
     } else {
-      const u = D.users[ph]
-      if (!u || ph === 'admin' || u.pw !== pw) return toast('Wrong number or password')
-      if (u.ban) return toast('Account blocked')
+      const res = await login(ph, pw)
+      if (res.error) return toast(res.error)
+      setMe(ph); onIn(ph)
     }
-    setMe(ph); onIn(ph)
+    setLoading(false)
   }
+
   return (
     <div className="auth"><div className="card">
       <div className="logo" style={{ fontSize: 22 }}>♠ Royal Spin</div>
       <p className="small">Play-money demo. Coins have no cash value.</p>
-      <div className="row"><button className={m === 'login' ? 'p' : ''} onClick={() => setM('login')}>Login</button><button className={m === 'signup' ? 'p' : ''} onClick={() => setM('signup')}>Sign up</button></div>
-      <label>Mobile number</label><input inputMode="numeric" placeholder="10 digit number" value={ph} onChange={(e) => setPh(e.target.value.trim())} />
-      <label>Password</label><input type="password" placeholder="min 6 characters" value={pw} onChange={(e) => setPw(e.target.value)} />
-      {m === 'signup' && <><label>Confirm password</label><input type="password" placeholder="re-enter password" value={cp} onChange={(e) => setCp(e.target.value)} /></>}
-      <button className="p" style={{ width: '100%', marginTop: 14 }} onClick={go}>{m === 'login' ? 'Login' : 'Create account'}</button>
+      <div className="row">
+        <button className={m === 'login' && !isAdmin ? 'p' : ''} onClick={() => { setM('login'); setIsAdmin(false) }}>Login</button>
+        <button className={m === 'signup' ? 'p' : ''} onClick={() => { setM('signup'); setIsAdmin(false) }}>Sign up</button>
+        <button className={isAdmin ? 'p' : ''} onClick={() => { setM('login'); setIsAdmin(true) }}>Admin</button>
+      </div>
+      <label>Mobile number</label>
+      <input inputMode="numeric" placeholder="10 digit number" value={ph} onChange={(e) => setPh(e.target.value.trim())} />
+      <label>Password</label>
+      <input type="password" placeholder="min 6 characters" value={pw} onChange={(e) => setPw(e.target.value)} />
+      {m === 'signup' && <>
+        <label>Username (optional)</label>
+        <input placeholder="Choose username" value={un} onChange={(e) => setUn(e.target.value.trim())} />
+        <label>Confirm password</label>
+        <input type="password" placeholder="re-enter password" value={cp} onChange={(e) => setCp(e.target.value)} />
+      </>}
+      <button className="p" style={{ width: '100%', marginTop: 14 }} onClick={go} disabled={loading}>
+        {loading ? '...' : m === 'login' ? (isAdmin ? 'Admin Login' : 'Login') : 'Create account'}
+      </button>
+      {isAdmin && <p className="small" style={{marginTop:10,color:'var(--ac)'}}>Admin phones: 9999999999, 8888888888, 7777777777, 6666666666</p>}
     </div></div>
   )
 }
@@ -243,20 +280,27 @@ function Main() {
     return () => document.removeEventListener('mousedown', c)
   }, [])
   const u = me ? user() : null
-  if (!u || u.admin) return <Auth onIn={setM} />
+  if (!u) return <Auth onIn={setM} />
+  
+  const isAdmin = u.is_admin === true
   const go = (v, g) => { setView(v); if (g) setGame(g); setOpen(false) }
   const logout = () => { setMe(null); setM(null); setView('home') }
   const Game = COMP[game]
+  
+  const menuItems = isAdmin 
+    ? [...MENU, ['admin', 'Admin Panel']]
+    : MENU
+  
   return (
     <>
       <header>
         <span className="logo" style={{ cursor: 'pointer' }} onClick={() => go('home')}>♠ Royal Spin</span>
         <div className="row" style={{ flex: 'none', gap: 10 }}>
-          <span className="bal" style={{ cursor: 'pointer' }} onClick={() => go('wallet')}>{u.hide ? '••••' : '₹' + f(u.bal)}</span>
+          <span className="bal" style={{ cursor: 'pointer' }} onClick={() => go('wallet')}>{u.hide_balance ? '••••' : '₹' + f(u.balance)}</span>
           <button className="p" style={{ padding: '8px 12px' }} onClick={() => go('wallet')}>+</button>
           <div className="menu" ref={menuRef}>
             <button className="av" onClick={() => setOpen((o) => !o)}>👤</button>
-            {open && <div className="dd">{MENU.map(([k, l]) => <button key={k} onClick={() => go(k)}>{l}</button>)}<button onClick={logout}>Log out</button></div>}
+            {open && <div className="dd">{menuItems.map(([k, l]) => <button key={k} onClick={() => go(k)}>{l}</button>)}<button onClick={logout}>Log out</button></div>}
           </div>
         </div>
       </header>
@@ -265,13 +309,14 @@ function Main() {
           <h3>Choose a game</h3>
           <div className="tiles">{GAMES.map(([k, n, c]) => {
             const [a, b] = c.split(',')
-            return <button key={k} className={'tile' + (db().cfg.on[k] ? '' : ' off')} style={{ background: `linear-gradient(135deg,${a},${b})` }} onClick={() => go('game', k)}>
+            const cfg = db().cfg
+            return <button key={k} className={'tile' + (cfg.on?.[k] ? '' : ' off')} style={{ background: `linear-gradient(135deg,${a},${b})` }} onClick={() => go('game', k)}>
               <svg viewBox="0 -2 100 100">{ICON[k]}</svg><span>{n}</span></button>
           })}</div></>}
         {view === 'game' && Game && <>
           <button onClick={() => go('home')}>← Games</button>
           <div className="card" style={{ marginTop: 10 }}>
-            <b>{GAMES.find((g) => g[0] === game)[1]}</b><p className="small">House edge {db().cfg.edge[game]}%</p>
+            <b>{GAMES.find((g) => g[0] === game)[1]}</b><p className="small">House edge {db().cfg.edge?.[game] || 0}%</p>
             <label>Bet amount</label>
             <div className="row"><input type="number" value={amt} onChange={(e) => setAmt(e.target.value)} />
               <button onClick={() => setAmt(Math.max(1, amt / 2))}>½</button><button onClick={() => setAmt(amt * 2)}>2×</button></div>
@@ -283,6 +328,7 @@ function Main() {
         {view === 'bonus' && <Bonus u={u} />}
         {view === 'profile' && <Profile u={u} me={me} />}
         {view === 'settings' && <Settings u={u} onLogout={logout} />}
+        {view === 'admin' && <Admin u={u} />}
       </main>
     </>
   )
