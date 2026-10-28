@@ -31,27 +31,40 @@ export function Notifications() {
 }
 
 function NotificationCard({ notif, onDismiss }) {
-  const { type, title, message, details, autoClose = 4000 } = notif
+  const { type, title, message, details, autoClose = 2000 } = notif
+  const [progress, setProgress] = useState(100)
+  const isWin = type === 'win'
+  
   useEffect(() => {
     if (autoClose) {
-      const id = setTimeout(onDismiss, autoClose)
-      return () => clearTimeout(id)
+      const startTime = Date.now()
+      const duration = autoClose
+      const interval = setInterval(() => {
+        const elapsed = Date.now() - startTime
+        const p = Math.max(0, 100 - (elapsed / duration) * 100)
+        setProgress(p)
+        if (p <= 0) {
+          clearInterval(interval)
+          onDismiss()
+        }
+      }, 50)
+      return () => clearInterval(interval)
     }
   }, [autoClose, onDismiss])
+  
   if (type === 'bet') {
     // Bet placed - simple center toast
     return (
       <div className="msg" style={{ animation: 'fin .2s', zIndex: 100 }}>{message}</div>
     )
   }
-  // Win/Loss - detailed card in center
-  const isWin = type === 'win'
+  // Win/Loss - detailed card at bottom, overlapping game card
   return (
-    <div className="msg" style={{ 
-      maxWidth: 360, 
-      padding: 20, 
+    <div className="winloss-card" style={{ 
+      maxWidth: 320, 
+      padding: 14, 
       textAlign: 'center',
-      animation: 'pop .3s cubic-bezier(.3,1.6,.5,1)',
+      animation: 'slideUp .3s cubic-bezier(.3,1.6,.5,1)',
       zIndex: 100,
       position: 'relative'
     }}>
@@ -59,30 +72,48 @@ function NotificationCard({ notif, onDismiss }) {
         onClick={onDismiss}
         style={{
           position: 'absolute',
-          top: 8,
-          right: 8,
-          width: 24,
-          height: 24,
+          top: 6,
+          right: 6,
+          width: 20,
+          height: 20,
           borderRadius: '50%',
           border: 'none',
           background: 'var(--c2)',
           color: 'var(--mut)',
           cursor: 'pointer',
-          fontSize: 16,
+          fontSize: 14,
           lineHeight: 1,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center'
         }}
       >×</button>
-      <div style={{ fontSize: 22, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 6 }}>
+      <div style={{ fontSize: 16, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 4 }}>
         {isWin ? 'WIN' : 'LOSS'}
       </div>
-      <div style={{ fontSize: 14, color: 'var(--tx)', marginBottom: 10, fontWeight: 500 }}>{title}</div>
-      <div style={{ fontSize: 18, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 12 }}>
+      <div style={{ fontSize: 12, color: 'var(--tx)', marginBottom: 6, fontWeight: 500 }}>{title}</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 8 }}>
         {isWin ? '+' : ''}₹{message.replace(/[^0-9.]/g, '')}
       </div>
-      {details && <div style={{ fontSize: 12, color: 'var(--mut)', lineHeight: 1.5, fontWeight: 400 }}>{details}</div>}
+      {details && <div style={{ fontSize: 10, color: 'var(--mut)', lineHeight: 1.4, fontWeight: 400, marginBottom: 8 }}>{details}</div>}
+      {/* Animated timeout progress bar */}
+      <div style={{ 
+        height: 3, 
+        borderRadius: 2, 
+        background: 'var(--c2)', 
+        overflow: 'hidden',
+        marginTop: 4
+      }}>
+        <div 
+          style={{ 
+            height: '100%', 
+            width: `${progress}%`, 
+            background: isWin ? 'var(--ac)' : 'var(--bad)',
+            transition: 'width 0.05s linear',
+            borderRadius: 2
+          }} 
+        />
+      </div>
     </div>
   )
 }

@@ -25,6 +25,9 @@ main{max-width:760px;margin:auto;padding:12px 14px 40px}main>*{animation:fin .35
 .tile.off{filter:grayscale(1) opacity(.5)}
 .big{font-size:44px;font-weight:800;text-align:center;padding:10px 0}.small{color:var(--mut);font-size:12px}
 .msg{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--c2);padding:10px 16px;border-radius:12px;font-weight:600;z-index:50;box-shadow:0 8px 24px #0008;max-width:90%;animation:fin .2s}
+
+.winloss-card{position:fixed;left:50%;bottom:calc(80px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--c1);border:1px solid var(--ln);border-radius:12px;box-shadow:0 12px 32px #000a;max-width:90%;z-index:100}
+@keyframes slideUp{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin:10px 0}
 .t{aspect-ratio:1;border-radius:12px;font-size:20px;padding:0;background:var(--c2)}
 .t:not(:disabled):hover{transform:translateY(-2px);background:#274255}
