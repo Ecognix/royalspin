@@ -62,7 +62,7 @@ function NotificationCard({ notif, onDismiss }) {
   // Top card for Color Trading (net result) - overlaps main game card
   if (center) {
     return (
-      <div className="msg" style={{ 
+      <div style={{ 
         minWidth: 280,
         maxWidth: '90vw',
         padding: '10px 14px', 
@@ -75,7 +75,8 @@ function NotificationCard({ notif, onDismiss }) {
         transform: 'translateX(-50%)',
         background: 'var(--c1)',
         borderRadius: '10px',
-        boxShadow: '0 8px 24px #000a'
+        boxShadow: '0 8px 24px #000a',
+        bottom: 'auto'
       }}>
         <button 
           onClick={onDismiss}
