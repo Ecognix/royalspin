@@ -59,16 +59,23 @@ function NotificationCard({ notif, onDismiss }) {
     )
   }
   
-  // Center card for Color Trading (net result)
+  // Top card for Color Trading (net result) - overlaps main game card
   if (center) {
     return (
       <div className="msg" style={{ 
         maxWidth: 360, 
         padding: 20, 
         textAlign: 'center',
-        animation: 'pop .3s cubic-bezier(.3,1.6,.5,1)',
+        animation: 'slideDown .3s cubic-bezier(.3,1.6,.5,1)',
         zIndex: 100,
-        position: 'relative'
+        position: 'fixed',
+        top: 'calc(70px + env(safe-area-inset-top,0px))',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        background: 'var(--c1)',
+        border: '1px solid var(--ln)',
+        borderRadius: '12px',
+        boxShadow: '0 12px 32px #000a'
       }}>
         <button 
           onClick={onDismiss}
