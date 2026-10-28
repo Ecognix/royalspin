@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { place, pay, toast, notify, f, user, refreshUser, supabase } from '../lib/supabase-db'
+import { useDB, place, pay, toast, notify, f, user, refreshUser, supabase } from '../lib/supabase-db'
 import { E, rnd, BETW, G, BLK, sched, cstate, PERIOD, LOCK, colorResult, colorResultCache, computeLowestBetResult, ballClass } from '../lib/fair'
 
 const FULL = { width: '100%' }
@@ -8,15 +8,16 @@ const comb = (n, k) => { if (k < 0 || k > n) return 0; let r = 1; for (let i = 1
 
 // ------------------------------------------------------------------ Dice
 export function Dice({ amt }) {
+  useDB()
   const [over, setOver] = useState(true), [t, setT] = useState(50)
   const [res, setRes] = useState(null), [spin, setSpin] = useState(null), [busy, setBusy] = useState(false)
   const [history, setHistory] = useState(() => {
     const u = user()
-    return (u.bets || []).filter((b) => b.g === 'dice').slice(0, 10)
+    return (u?.bets || []).filter((b) => b.g === 'dice').slice(0, 10)
   })
   useEffect(() => {
     const u = user()
-    setHistory((u.bets || []).filter((b) => b.g === 'dice').slice(0, 10))
+    setHistory((u?.bets || []).filter((b) => b.g === 'dice').slice(0, 10))
   }, [user()])
   const ch = over ? 100 - t : t, mult = (100 * E('dice')) / ch
   function roll() {
@@ -78,14 +79,15 @@ export function Dice({ amt }) {
 
 // ------------------------------------------------------------------ Limbo
 export function Limbo({ amt }) {
+  useDB()
   const [tg, setTg] = useState(2), [v, setV] = useState(null), [col, setCol] = useState(undefined), [busy, setBusy] = useState(false)
   const [history, setHistory] = useState(() => {
     const u = user()
-    return (u.bets || []).filter((b) => b.g === 'limbo').slice(0, 10)
+    return (u?.bets || []).filter((b) => b.g === 'limbo').slice(0, 10)
   })
   useEffect(() => {
     const u = user()
-    setHistory((u.bets || []).filter((b) => b.g === 'limbo').slice(0, 10))
+    setHistory((u?.bets || []).filter((b) => b.g === 'limbo').slice(0, 10))
   }, [user()])
   function play() {
     if (busy) return
@@ -138,14 +140,15 @@ export function Limbo({ amt }) {
 // ------------------------------------------------------------------ Mines
 const mmul = (m) => { let x = 1; for (let i = 0; i < m.f; i++) x *= (25 - i) / (25 - m.n - i); return x * E('mines') }
 export function Mines({ amt }) {
+  useDB()
   const [n, setN] = useState(3), [M, setM] = useState(null), [shake, setShake] = useState(false)
   const [history, setHistory] = useState(() => {
     const u = user()
-    return (u.bets || []).filter((b) => b.g === 'mines').slice(0, 10)
+    return (u?.bets || []).filter((b) => b.g === 'mines').slice(0, 10)
   })
   useEffect(() => {
     const u = user()
-    setHistory((u.bets || []).filter((b) => b.g === 'mines').slice(0, 10))
+    setHistory((u?.bets || []).filter((b) => b.g === 'mines').slice(0, 10))
   }, [user()])
   const ref = useRef(null); ref.current = M
   // leaving mid-round cashes out gems, or refunds the stake if none were found
@@ -223,14 +226,15 @@ export function Mines({ amt }) {
 
 // ------------------------------------------------------------------ Keno
 export function Keno({ amt }) {
+  useDB()
   const [K, setK] = useState([]), [drawn, setDrawn] = useState([]), [busy, setBusy] = useState(false)
   const [history, setHistory] = useState(() => {
     const u = user()
-    return (u.bets || []).filter((b) => b.g === 'keno').slice(0, 10)
+    return (u?.bets || []).filter((b) => b.g === 'keno').slice(0, 10)
   })
   useEffect(() => {
     const u = user()
-    setHistory((u.bets || []).filter((b) => b.g === 'keno').slice(0, 10))
+    setHistory((u?.bets || []).filter((b) => b.g === 'keno').slice(0, 10))
   }, [user()])
   const tog = (i) => !busy && setK((k) => k.includes(i) ? k.filter((x) => x !== i) : k.length < 10 ? [...k, i] : k)
   function play() {
@@ -288,14 +292,15 @@ export function Keno({ amt }) {
 
 // ------------------------------------------------------------------ Coin flip
 export function Flip({ amt }) {
+  useDB()
   const [side, setSide] = useState('Heads'), [rot, setRot] = useState(0), [busy, setBusy] = useState(false)
   const [history, setHistory] = useState(() => {
     const u = user()
-    return (u.bets || []).filter((b) => b.g === 'flip').slice(0, 10)
+    return (u?.bets || []).filter((b) => b.g === 'flip').slice(0, 10)
   })
   useEffect(() => {
     const u = user()
-    setHistory((u.bets || []).filter((b) => b.g === 'flip').slice(0, 10))
+    setHistory((u?.bets || []).filter((b) => b.g === 'flip').slice(0, 10))
   }, [user()])
   const scene = useRef(null)
   function flip() {
@@ -367,14 +372,15 @@ function draw(cv, s) {
 }
 
 export function Crash({ amt }) {
+  useDB()
   const cv = useRef(null), [s, setS] = useState(() => cstate())
   const [history, setHistory] = useState(() => {
     const u = user()
-    return (u.bets || []).filter((b) => b.g === 'crash').slice(0, 10)
+    return (u?.bets || []).filter((b) => b.g === 'crash').slice(0, 10)
   })
   useEffect(() => {
     const u = user()
-    setHistory((u.bets || []).filter((b) => b.g === 'crash').slice(0, 10))
+    setHistory((u?.bets || []).filter((b) => b.g === 'crash').slice(0, 10))
   }, [user()])
   useEffect(() => {
     const iv = setInterval(() => { const st = cstate(); setS(st); draw(cv.current, st) }, 100)
@@ -391,7 +397,7 @@ export function Crash({ amt }) {
     if (P && !P.out && P.i >= st.i) return toast('Bet already placed')
     const a = place('crash', amt); if (!a) return
     u.cbet = { i: st.st === 'bet' ? st.i : st.ni, a, out: 0 }
-    await supabase.from('users').update({ cbet: u.cbet }).eq('phone', u.phone)
+    // cbet kept in memory on user object
     notify({ type: 'bet', title: 'Bet Placed', message: st.st === 'bet' ? `Bet ₹${f(amt)} placed` : `Bet ₹${f(amt)} queued for next round` })
   }
   async function cancelBet() {
@@ -402,8 +408,7 @@ export function Crash({ amt }) {
         balance: u.balance, 
         total_wagered: u.total_wagered, 
         total_bets: u.total_bets,
-        cbet: null
-      }).eq('phone', u.phone)
+        }).eq('phone', u.phone)
       notify({ type: 'bet', title: 'Bet Cancelled', message: `₹${f(P.a)} returned to balance` })
     }
   }
@@ -462,6 +467,7 @@ const sizeOf = (n) => (n >= 5 ? 'Big' : 'Small')
 const sizeCol = (n) => (n >= 5 ? '#f59e0b' : '#3b82f6')
 const cname = (n) => (n === 0 ? 'Red + Violet' : n === 5 ? 'Green + Violet' : n % 2 ? 'Green' : 'Red')
 export function Color({ amt }) {
+  useDB()
   const [now, setNow] = useState(() => Date.now()), [sel, setSel] = useState(null)
   const [, setRndTick] = useState(0)
   useEffect(() => { const iv = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(iv) }, [])
@@ -523,7 +529,7 @@ export function Color({ amt }) {
     }
     toast('Bet placed')
   }
-  const name = (b) => (b.type === 'num' ? `Number ${b.val}` : b.val[0].toUpperCase() + b.val.slice(1))
+  const name = (b) => { if (!b) return ''; if (b.type === 'num') return 'Number ' + b.val; const s = String(b.val || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
   return (
     <>
       <div className="row" style={{ alignItems: 'center' }}>
