@@ -31,7 +31,7 @@ export function Notifications() {
 }
 
 function NotificationCard({ notif, onDismiss }) {
-  const { type, title, message, details, autoClose = 3000 } = notif
+  const { type, title, message, details, autoClose = 4000 } = notif
   useEffect(() => {
     if (autoClose) {
       const id = setTimeout(onDismiss, autoClose)
@@ -45,20 +45,44 @@ function NotificationCard({ notif, onDismiss }) {
     )
   }
   // Win/Loss - detailed card in center
+  const isWin = type === 'win'
   return (
     <div className="msg" style={{ 
       maxWidth: 360, 
       padding: 20, 
       textAlign: 'center',
       animation: 'pop .3s cubic-bezier(.3,1.6,.5,1)',
-      zIndex: 100
+      zIndex: 100,
+      position: 'relative'
     }}>
-      <div style={{ fontSize: 28, fontWeight: 800, color: type === 'win' ? 'var(--ac)' : 'var(--bad)', marginBottom: 8 }}>
-        {type === 'win' ? '🎉 WIN' : '💥 LOSS'}
+      <button 
+        onClick={onDismiss}
+        style={{
+          position: 'absolute',
+          top: 8,
+          right: 8,
+          width: 24,
+          height: 24,
+          borderRadius: '50%',
+          border: 'none',
+          background: 'var(--c2)',
+          color: 'var(--mut)',
+          cursor: 'pointer',
+          fontSize: 16,
+          lineHeight: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >×</button>
+      <div style={{ fontSize: 22, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 6 }}>
+        {isWin ? 'WIN' : 'LOSS'}
       </div>
-      <div style={{ fontSize: 16, marginBottom: 12 }}>{title}</div>
-      {details && <div style={{ fontSize: 13, color: 'var(--mut)', marginBottom: 16, lineHeight: 1.6 }}>{details}</div>}
-      <button className="p" style={{ width: '100%', padding: 10 }} onClick={onDismiss}>Close</button>
+      <div style={{ fontSize: 14, color: 'var(--tx)', marginBottom: 10, fontWeight: 500 }}>{title}</div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 12 }}>
+        {isWin ? '+' : ''}₹{message.replace(/[^0-9.]/g, '')}
+      </div>
+      {details && <div style={{ fontSize: 12, color: 'var(--mut)', lineHeight: 1.5, fontWeight: 400 }}>{details}</div>}
     </div>
   )
 }

@@ -2,14 +2,14 @@
 import { useEffect, useState } from 'react'
 import { db, useDB, commit, toast, f, addtx } from '../lib/db'
 import { GAMES } from './meta'
-import { Toasts } from './App'
+import { Notifications } from './App'
 
 // Admin console (route: /console). Separate login, separate session key,
 // not linked from the player app. Default login: admin / admin123 (change it in Security).
 export default function Admin() {
   const [ok, setOk] = useState(false), [authed, setAuthed] = useState(false)
   useEffect(() => { setOk(true); setAuthed(sessionStorage.getItem('rs-admin') === '1') }, [])
-  return <>{ok && (authed ? <Panel onOut={() => { sessionStorage.removeItem('rs-admin'); setAuthed(false) }} /> : <Login onIn={() => { sessionStorage.setItem('rs-admin', '1'); setAuthed(true) }} />)}<Toasts /></>
+  return <>{ok && (authed ? <Panel onOut={() => { sessionStorage.removeItem('rs-admin'); setAuthed(false) }} /> : <Login onIn={() => { sessionStorage.setItem('rs-admin', '1'); setAuthed(true) }} />)}<Notifications /></>
 }
 
 function Login({ onIn }) {
