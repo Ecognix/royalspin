@@ -260,11 +260,11 @@ function Auth({ onIn }) {
         
         const res = await signup(ph, pw, un || undefined)
         if (res.error) return toast(res.error)
-        setMe(ph); onIn(ph)
+        setMe(ph, res.user); onIn(ph)
       } else {
         const res = await login(ph, pw)
         if (res.error) return toast(res.error)
-        setMe(ph); onIn(ph)
+        setMe(ph, res.user); onIn(ph)
       }
     } finally {
       setLoading(false)
