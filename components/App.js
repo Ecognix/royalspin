@@ -9,22 +9,65 @@ import { Wallet, Vault, Wager, Bonus, Profile, Settings } from './Pages'
 const COMP = { dice: Dice, limbo: Limbo, mines: Mines, keno: Keno, flip: Flip, crash: Crash, color: Color }
 const MENU = [['home', 'Games'], ['wallet', 'Wallet'], ['vault', 'Vault'], ['wager', 'Wager'], ['bonus', 'Bonus'], ['profile', 'Profile'], ['settings', 'Settings']]
 
-export function Toasts() {
-  const [t, setT] = useState(null)
+// Notification system - supports both simple toasts and detailed result cards
+export function Notifications() {
+  const [notifs, setNotifs] = useState([])
   useEffect(() => {
-    let id
-    const on = (e) => { setT(e.detail); clearTimeout(id); id = setTimeout(() => setT(null), 2200) }
-    window.addEventListener('rs-toast', on)
-    return () => { window.removeEventListener('rs-toast', on); clearTimeout(id) }
+    const on = (e) => {
+      const n = e.detail
+      setNotifs((prev) => [...prev, { ...n, id: Date.now() + Math.random() }])
+    }
+    window.addEventListener('rs-notify', on)
+    return () => window.removeEventListener('rs-notify', on)
   }, [])
-  return t ? <div className="msg">{t}</div> : null
+  const dismiss = (id) => setNotifs((prev) => prev.filter((n) => n.id !== id))
+  return (
+    <>
+      {notifs.map((n) => (
+        <NotificationCard key={n.id} notif={n} onDismiss={() => dismiss(n.id)} />
+      ))}
+    </>
+  )
+}
+
+function NotificationCard({ notif, onDismiss }) {
+  const { type, title, message, details, autoClose = 3000 } = notif
+  useEffect(() => {
+    if (autoClose) {
+      const id = setTimeout(onDismiss, autoClose)
+      return () => clearTimeout(id)
+    }
+  }, [autoClose, onDismiss])
+  if (type === 'bet') {
+    // Bet placed - simple center toast
+    return (
+      <div className="msg" style={{ animation: 'fin .2s', zIndex: 100 }}>{message}</div>
+    )
+  }
+  // Win/Loss - detailed card in center
+  return (
+    <div className="msg" style={{ 
+      maxWidth: 360, 
+      padding: 20, 
+      textAlign: 'center',
+      animation: 'pop .3s cubic-bezier(.3,1.6,.5,1)',
+      zIndex: 100
+    }}>
+      <div style={{ fontSize: 28, fontWeight: 800, color: type === 'win' ? 'var(--ac)' : 'var(--bad)', marginBottom: 8 }}>
+        {type === 'win' ? '🎉 WIN' : '💥 LOSS'}
+      </div>
+      <div style={{ fontSize: 16, marginBottom: 12 }}>{title}</div>
+      {details && <div style={{ fontSize: 13, color: 'var(--mut)', marginBottom: 16, lineHeight: 1.6 }}>{details}</div>}
+      <button className="p" style={{ width: '100%', padding: 10 }} onClick={onDismiss}>Close</button>
+    </div>
+  )
 }
 
 // Mount gate: the data layer reads localStorage, so nothing renders on the server.
 export default function App() {
   const [ok, setOk] = useState(false)
   useEffect(() => setOk(true), [])
-  return <>{ok && <Main />}<Toasts /></>
+  return <>{ok && <Main />}<Notifications /></>
 }
 
 function Auth({ onIn }) {

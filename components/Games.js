@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { place, pay, toast, f, user, commit } from '../lib/db'
+import { place, pay, toast, notify, f, user, commit } from '../lib/db'
 import { E, rnd, BETW, G, BLK, sched, cstate, PERIOD, LOCK, colorResult, ballClass } from '../lib/fair'
 
 const FULL = { width: '100%' }
@@ -10,6 +10,14 @@ const comb = (n, k) => { if (k < 0 || k > n) return 0; let r = 1; for (let i = 1
 export function Dice({ amt }) {
   const [over, setOver] = useState(true), [t, setT] = useState(50)
   const [res, setRes] = useState(null), [spin, setSpin] = useState(null), [busy, setBusy] = useState(false)
+  const [history, setHistory] = useState(() => {
+    const u = user()
+    return (u.bets || []).filter((b) => b.g === 'dice').slice(0, 10)
+  })
+  useEffect(() => {
+    const u = user()
+    setHistory((u.bets || []).filter((b) => b.g === 'dice').slice(0, 10))
+  }, [user()])
   const ch = over ? 100 - t : t, mult = (100 * E('dice')) / ch
   function roll() {
     if (busy) return
@@ -21,8 +29,14 @@ export function Dice({ amt }) {
       setSpin(Math.random() * 100)
       if (++n > 9) {
         clearInterval(iv); setSpin(null)
-        pay('dice', a, w ? a * mult : 0)
-        toast(w ? `Win ₹${f(a * mult)}` : 'Lost'); setBusy(false)
+        const win = w ? a * mult : 0
+        pay('dice', a, win)
+        if (w) {
+          notify({ type: 'win', title: `Dice - ${over ? 'Over' : 'Under'} ${t}`, message: `Win ₹${f(win)}`, details: `Rolled ${f(x)} · Chance ${ch}% · Payout ${f(mult)}×` })
+        } else {
+          notify({ type: 'loss', title: `Dice - ${over ? 'Over' : 'Under'} ${t}`, message: `Lost ₹${f(a)}`, details: `Rolled ${f(x)} · Chance ${ch}%` })
+        }
+        setBusy(false)
       }
     }, 70)
   }
@@ -41,6 +55,23 @@ export function Dice({ amt }) {
       <input type="range" min="2" max="98" value={t} onChange={(e) => setT(+e.target.value)} />
       <p className="small">{over ? 'Over' : 'Under'} {t} · chance {ch}% · pays {f(mult)}×</p>
       <button className="p" style={FULL} onClick={roll} disabled={busy}>Roll</button>
+      {history.length > 0 && (
+        <div className="card" style={{ marginTop: 12, background: 'var(--bg)' }}>
+          <b>Your Recent Bets</b>
+          <table>
+            <thead><tr><th>Type</th><th>Target</th><th>Result</th><th>Bet</th><th>Win</th></tr></thead>
+            <tbody>{history.map((b, i) => (
+              <tr key={i}>
+                <td>{over ? 'Over' : 'Under'}</td>
+                <td>{t}</td>
+                <td style={{ color: b.w > b.a ? 'var(--ac)' : 'var(--bad)' }}>{b.w > b.a ? 'Win' : 'Loss'}</td>
+                <td>₹{f(b.a)}</td>
+                <td style={{ color: b.w > b.a ? 'var(--ac)' : 'var(--bad)' }}>{b.w > b.a ? '+' : ''}₹{f(b.w - b.a)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
     </>
   )
 }
@@ -48,6 +79,14 @@ export function Dice({ amt }) {
 // ------------------------------------------------------------------ Limbo
 export function Limbo({ amt }) {
   const [tg, setTg] = useState(2), [v, setV] = useState(null), [col, setCol] = useState(undefined), [busy, setBusy] = useState(false)
+  const [history, setHistory] = useState(() => {
+    const u = user()
+    return (u.bets || []).filter((b) => b.g === 'limbo').slice(0, 10)
+  })
+  useEffect(() => {
+    const u = user()
+    setHistory((u.bets || []).filter((b) => b.g === 'limbo').slice(0, 10))
+  }, [user()])
   function play() {
     if (busy) return
     const a = place('limbo', amt); if (!a) return
@@ -59,7 +98,14 @@ export function Limbo({ amt }) {
       setV(1 + (r - 1) * (1 - Math.pow(1 - p, 3)))
       if (p >= 1) {
         clearInterval(iv); setCol(w ? 'var(--ac)' : 'var(--bad)')
-        pay('limbo', a, w ? a * t : 0); toast(w ? `Win ₹${f(a * t)}` : 'Lost'); setBusy(false)
+        const win = w ? a * t : 0
+        pay('limbo', a, win)
+        if (w) {
+          notify({ type: 'win', title: `Limbo - Target ${f(t)}×`, message: `Win ₹${f(win)}`, details: `Result ${f(r)}× · Target ${f(t)}× · Payout ${f(t)}×` })
+        } else {
+          notify({ type: 'loss', title: `Limbo - Target ${f(t)}×`, message: `Lost ₹${f(a)}`, details: `Result ${f(r)}× · Target ${f(t)}×` })
+        }
+        setBusy(false)
       }
     }, 30)
   }
@@ -69,6 +115,22 @@ export function Limbo({ amt }) {
       <label>Target multiplier</label>
       <input type="number" step="0.01" min="1.01" value={tg} onChange={(e) => setTg(e.target.value)} />
       <button className="p" style={{ ...FULL, marginTop: 12 }} onClick={play} disabled={busy}>Play</button>
+      {history.length > 0 && (
+        <div className="card" style={{ marginTop: 12, background: 'var(--bg)' }}>
+          <b>Your Recent Bets</b>
+          <table>
+            <thead><tr><th>Target</th><th>Result</th><th>Bet</th><th>Win</th></tr></thead>
+            <tbody>{history.map((b, i) => (
+              <tr key={i}>
+                <td>{f(b.a)}×</td>
+                <td style={{ color: b.w > b.a ? 'var(--ac)' : 'var(--bad)' }}>{f(b.w / b.a)}×</td>
+                <td>₹{f(b.a)}</td>
+                <td style={{ color: b.w > b.a ? 'var(--ac)' : 'var(--bad)' }}>{b.w > b.a ? '+' : ''}₹{f(b.w - b.a)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
     </>
   )
 }
@@ -77,6 +139,14 @@ export function Limbo({ amt }) {
 const mmul = (m) => { let x = 1; for (let i = 0; i < m.f; i++) x *= (25 - i) / (25 - m.n - i); return x * E('mines') }
 export function Mines({ amt }) {
   const [n, setN] = useState(3), [M, setM] = useState(null), [shake, setShake] = useState(false)
+  const [history, setHistory] = useState(() => {
+    const u = user()
+    return (u.bets || []).filter((b) => b.g === 'mines').slice(0, 10)
+  })
+  useEffect(() => {
+    const u = user()
+    setHistory((u.bets || []).filter((b) => b.g === 'mines').slice(0, 10))
+  }, [user()])
   const ref = useRef(null); ref.current = M
   // leaving mid-round cashes out gems, or refunds the stake if none were found
   useEffect(() => () => { const m = ref.current; if (m && m.on) pay('mines', m.a, m.f ? m.a * mmul(m) : m.a) }, [])
@@ -84,22 +154,24 @@ export function Mines({ amt }) {
     if (M && M.on) return
     const a = place('mines', amt); if (!a) return
     const s = new Set(); while (s.size < n) s.add(Math.floor(rnd() * 25))
-    setM({ on: true, n, s, a, f: 0, rev: {} }); toast('Round started')
+    setM({ on: true, n, s, a, f: 0, rev: {} })
+    notify({ type: 'bet', title: 'Mines Round Started', message: `Bet ₹${f(a)} · ${n} mines` })
   }
   function pick(i) {
     if (!M || !M.on || M.rev[i]) return
     if (M.s.has(i)) {
       pay('mines', M.a, 0); setM({ ...M, on: false, rev: { ...M.rev, [i]: 'mine' } })
       setShake(true); setTimeout(() => setShake(false), 500)
+      notify({ type: 'loss', title: 'Mines - Hit Mine', message: `Lost ₹${f(M.a)}`, details: `Found ${M.f} gems · Multiplier ${f(mmul(M))}×` })
     } else {
       const m2 = { ...M, f: M.f + 1, rev: { ...M.rev, [i]: 'gem' } }
-      if (m2.f === 25 - M.n) { const w = M.a * mmul(m2); pay('mines', M.a, w); toast(`Cleared the board! ₹${f(w)}`); setM({ ...m2, on: false }) }
+      if (m2.f === 25 - M.n) { const w = M.a * mmul(m2); pay('mines', M.a, w); notify({ type: 'win', title: 'Mines - Cleared Board!', message: `Win ₹${f(w)}`, details: `Found all ${25 - M.n} gems · Multiplier ${f(mmul(m2))}×` }); setM({ ...m2, on: false }) }
       else setM(m2)
     }
   }
   function cash() {
     if (!M || !M.on || !M.f) return
-    const w = M.a * mmul(M); pay('mines', M.a, w); toast(`Cashed out ₹${f(w)}`); setM({ ...M, on: false })
+    const w = M.a * mmul(M); pay('mines', M.a, w); notify({ type: 'win', title: 'Mines - Cashed Out', message: `Win ₹${f(w)}`, details: `Found ${M.f} gems · Multiplier ${f(mmul(M))}×` }); setM({ ...M, on: false })
   }
   const on = M && M.on
   return (
@@ -129,6 +201,22 @@ export function Mines({ amt }) {
         <button className="p" onClick={start} disabled={on}>{on ? 'Round live' : M ? 'Play again' : 'Start'}</button>
         <button onClick={cash} disabled={!on || !M.f}>Cash out</button>
       </div>
+      {history.length > 0 && (
+        <div className="card" style={{ marginTop: 12, background: 'var(--bg)' }}>
+          <b>Your Recent Bets</b>
+          <table>
+            <thead><tr><th>Mines</th><th>Gems</th><th>Bet</th><th>Win</th></tr></thead>
+            <tbody>{history.map((b, i) => (
+              <tr key={i}>
+                <td>{b.g === 'mines' ? '—' : ''}</td>
+                <td style={{ color: b.w > b.a ? 'var(--ac)' : 'var(--bad)' }}>{b.w > b.a ? 'Win' : 'Loss'}</td>
+                <td>₹{f(b.a)}</td>
+                <td style={{ color: b.w > b.a ? 'var(--ac)' : 'var(--bad)' }}>{b.w > b.a ? '+' : ''}₹{f(b.w - b.a)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
     </>
   )
 }
@@ -136,6 +224,14 @@ export function Mines({ amt }) {
 // ------------------------------------------------------------------ Keno
 export function Keno({ amt }) {
   const [K, setK] = useState([]), [drawn, setDrawn] = useState([]), [busy, setBusy] = useState(false)
+  const [history, setHistory] = useState(() => {
+    const u = user()
+    return (u.bets || []).filter((b) => b.g === 'keno').slice(0, 10)
+  })
+  useEffect(() => {
+    const u = user()
+    setHistory((u.bets || []).filter((b) => b.g === 'keno').slice(0, 10))
+  }, [user()])
   const tog = (i) => !busy && setK((k) => k.includes(i) ? k.filter((x) => x !== i) : k.length < 10 ? [...k, i] : k)
   function play() {
     if (busy) return
@@ -146,7 +242,15 @@ export function Keno({ amt }) {
     const h = d.filter((x) => K.includes(x)).length, p = K.length, lo = Math.ceil(p / 2), k = p - lo + 1
     let m = 0; if (h >= lo) m = E('keno') / (((comb(p, h) * comb(40 - p, 10 - h)) / comb(40, 10)) * k)
     d.forEach((x, j) => setTimeout(() => setDrawn((z) => [...z, x]), j * 160))
-    setTimeout(() => { pay('keno', a, a * m); toast(`${h} hits · ${f(m)}×` + (m > 0 ? ` · win ₹${f(a * m)}` : ' · lost')); setBusy(false) }, 1750)
+    setTimeout(() => { 
+      pay('keno', a, a * m)
+      if (m > 0) {
+        notify({ type: 'win', title: `Keno - ${h} Hits`, message: `Win ₹${f(a * m)}`, details: `${h}/${p} numbers matched · Payout ${f(m)}×` })
+      } else {
+        notify({ type: 'loss', title: `Keno - ${h} Hits`, message: `Lost ₹${f(a)}`, details: `${h}/${p} numbers matched` })
+      }
+      setBusy(false) 
+    }, 1750)
   }
   return (
     <>
@@ -162,6 +266,22 @@ export function Keno({ amt }) {
         <button className="p" onClick={play} disabled={busy}>Draw</button>
         <button onClick={() => { setK([]); setDrawn([]) }} disabled={busy}>Clear</button>
       </div>
+      {history.length > 0 && (
+        <div className="card" style={{ marginTop: 12, background: 'var(--bg)' }}>
+          <b>Your Recent Bets</b>
+          <table>
+            <thead><tr><th>Numbers</th><th>Hits</th><th>Bet</th><th>Win</th></tr></thead>
+            <tbody>{history.map((b, i) => (
+              <tr key={i}>
+                <td>{b.g === 'keno' ? '—' : ''}</td>
+                <td style={{ color: b.w > b.a ? 'var(--ac)' : 'var(--bad)' }}>{b.w > b.a ? 'Win' : 'Loss'}</td>
+                <td>₹{f(b.a)}</td>
+                <td style={{ color: b.w > b.a ? 'var(--ac)' : 'var(--bad)' }}>{b.w > b.a ? '+' : ''}₹{f(b.w - b.a)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
     </>
   )
 }
@@ -169,6 +289,14 @@ export function Keno({ amt }) {
 // ------------------------------------------------------------------ Coin flip
 export function Flip({ amt }) {
   const [side, setSide] = useState('Heads'), [rot, setRot] = useState(0), [busy, setBusy] = useState(false)
+  const [history, setHistory] = useState(() => {
+    const u = user()
+    return (u.bets || []).filter((b) => b.g === 'flip').slice(0, 10)
+  })
+  useEffect(() => {
+    const u = user()
+    setHistory((u.bets || []).filter((b) => b.g === 'flip').slice(0, 10))
+  }, [user()])
   const scene = useRef(null)
   function flip() {
     if (busy) return
@@ -179,7 +307,13 @@ export function Flip({ amt }) {
     const el = scene.current; el.classList.remove('toss'); void el.offsetWidth; el.classList.add('toss')
     setTimeout(() => {
       const w = r === side, win = a * 2 * E('flip')
-      pay('flip', a, w ? win : 0); toast(w ? `${r}! Win ₹${f(win)}` : `${r}. Lost`); setBusy(false)
+      pay('flip', a, w ? win : 0)
+      if (w) {
+        notify({ type: 'win', title: `Coin Flip - ${side}`, message: `Win ₹${f(win)}`, details: `Result: ${r} · Payout ${f(2 * E('flip'))}×` })
+      } else {
+        notify({ type: 'loss', title: `Coin Flip - ${side}`, message: `Lost ₹${f(a)}`, details: `Result: ${r}` })
+      }
+      setBusy(false)
     }, 1450)
   }
   return (
@@ -194,6 +328,22 @@ export function Flip({ amt }) {
       </div>
       <p className="small">Pays {f(2 * E('flip'))}×</p>
       <button className="p" style={FULL} onClick={flip} disabled={busy}>Flip</button>
+      {history.length > 0 && (
+        <div className="card" style={{ marginTop: 12, background: 'var(--bg)' }}>
+          <b>Your Recent Bets</b>
+          <table>
+            <thead><tr><th>Choice</th><th>Result</th><th>Bet</th><th>Win</th></tr></thead>
+            <tbody>{history.map((b, i) => (
+              <tr key={i}>
+                <td>{b.g === 'flip' ? 'Heads/Tails' : ''}</td>
+                <td style={{ color: b.w > b.a ? 'var(--ac)' : 'var(--bad)' }}>{b.w > b.a ? 'Win' : 'Loss'}</td>
+                <td>₹{f(b.a)}</td>
+                <td style={{ color: b.w > b.a ? 'var(--ac)' : 'var(--bad)' }}>{b.w > b.a ? '+' : ''}₹{f(b.w - b.a)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
     </>
   )
 }
@@ -218,6 +368,14 @@ function draw(cv, s) {
 
 export function Crash({ amt }) {
   const cv = useRef(null), [s, setS] = useState(() => cstate())
+  const [history, setHistory] = useState(() => {
+    const u = user()
+    return (u.bets || []).filter((b) => b.g === 'crash').slice(0, 10)
+  })
+  useEffect(() => {
+    const u = user()
+    setHistory((u.bets || []).filter((b) => b.g === 'crash').slice(0, 10))
+  }, [user()])
   useEffect(() => {
     const iv = setInterval(() => { const st = cstate(); setS(st); draw(cv.current, st) }, 100)
     return () => clearInterval(iv)
@@ -226,12 +384,14 @@ export function Crash({ amt }) {
   function act() {
     const st = cstate()
     if (P && !P.out && P.i === st.i && st.st === 'fly') {
-      P.out = 1; const w = P.a * st.m; pay('crash', P.a, w); toast(`Cashed out ₹${f(w)} at ${f(st.m)}×`); return
+      P.out = 1; const w = P.a * st.m; pay('crash', P.a, w)
+      notify({ type: 'win', title: `Crash - Cashed Out`, message: `Win ₹${f(w)}`, details: `Cashed out at ${f(st.m)}×` })
+      return
     }
     if (P && !P.out && P.i >= st.i) return toast('Bet already placed')
     const a = place('crash', amt); if (!a) return
     u.cbet = { i: st.st === 'bet' ? st.i : st.ni, a, out: 0 }; commit()
-    toast(st.st === 'bet' ? 'Bet placed' : 'Bet queued for next round')
+    notify({ type: 'bet', title: 'Bet Placed', message: st.st === 'bet' ? `Bet ₹${f(amt)} placed` : `Bet ₹${f(amt)} queued for next round` })
   }
   const mine = P && !P.out && P.i === s.i, q = P && !P.out && P.i > s.i, co = mine && s.st === 'fly', crashed = s.st === 'crash'
   const label = mine ? (co ? `Cash out ₹${f(P.a * s.m)}` : s.st === 'bet' ? 'Bet placed ✓' : 'Settling') : q ? 'Queued for next round ✓' : s.st === 'bet' ? `Bet ₹${f(amt)}` : `Bet next round ₹${f(amt)}`
@@ -257,6 +417,22 @@ export function Crash({ amt }) {
       </div>
       <button className="p" style={{ ...FULL, marginTop: 10, background: co ? '#ffd54f' : undefined }} onClick={act}>{label}</button>
       <p className="small">One shared live round for everyone, derived from the clock and a public seed.</p>
+      {history.length > 0 && (
+        <div className="card" style={{ marginTop: 12, background: 'var(--bg)' }}>
+          <b>Your Recent Bets</b>
+          <table>
+            <thead><tr><th>Round</th><th>Cashout</th><th>Bet</th><th>Win</th></tr></thead>
+            <tbody>{history.map((b, i) => (
+              <tr key={i}>
+                <td>#{b.t ? Math.floor(b.t / 1000) % 100000 : '—'}</td>
+                <td style={{ color: b.w > b.a ? 'var(--ac)' : 'var(--bad)' }}>{b.w > b.a ? f(b.w / b.a) + '×' : 'Crashed'}</td>
+                <td>₹{f(b.a)}</td>
+                <td style={{ color: b.w > b.a ? 'var(--ac)' : 'var(--bad)' }}>{b.w > b.a ? '+' : ''}₹{f(b.w - b.a)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
     </>
   )
 }
