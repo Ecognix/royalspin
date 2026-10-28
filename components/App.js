@@ -63,8 +63,9 @@ function NotificationCard({ notif, onDismiss }) {
   if (center) {
     return (
       <div className="msg" style={{ 
-        maxWidth: 360, 
-        padding: 20, 
+        minWidth: 280,
+        maxWidth: '90vw',
+        padding: '12px 16px', 
         textAlign: 'center',
         animation: 'slideDown .3s cubic-bezier(.3,1.6,.5,1)',
         zIndex: 100,
@@ -73,45 +74,43 @@ function NotificationCard({ notif, onDismiss }) {
         left: '50%',
         transform: 'translateX(-50%)',
         background: 'var(--c1)',
-        border: '1px solid var(--ln)',
-        borderRadius: '12px',
-        boxShadow: '0 12px 32px #000a'
+        borderRadius: '10px',
+        boxShadow: '0 8px 24px #000a'
       }}>
         <button 
           onClick={onDismiss}
           style={{
             position: 'absolute',
-            top: 8,
-            right: 8,
-            width: 24,
-            height: 24,
+            top: 4,
+            right: 4,
+            width: 20,
+            height: 20,
             borderRadius: '50%',
             border: 'none',
             background: 'var(--c2)',
             color: 'var(--mut)',
             cursor: 'pointer',
-            fontSize: 16,
+            fontSize: 14,
             lineHeight: 1,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center'
           }}
         >×</button>
-        <div style={{ fontSize: 22, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 6 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 4 }}>
           {isWin ? 'NET PROFIT' : 'NET LOSS'}
         </div>
-        <div style={{ fontSize: 14, color: 'var(--tx)', marginBottom: 10, fontWeight: 500 }}>{title}</div>
-        <div style={{ fontSize: 18, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 12 }}>
-          {isWin ? '+' : ''}₹{message.replace(/[^0-9.]/g, '')}
+        <div style={{ fontSize: 13, color: 'var(--tx)', marginBottom: 6, fontWeight: 500 }}>{title}</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 8 }}>
+          {message}
         </div>
-        {details && <div style={{ fontSize: 12, color: 'var(--mut)', lineHeight: 1.5, fontWeight: 400 }}>{details}</div>}
         {/* Animated timeout progress bar */}
         <div style={{ 
           height: 3, 
           borderRadius: 2, 
           background: 'var(--c2)', 
           overflow: 'hidden',
-          marginTop: 12
+          marginTop: 8
         }}>
           <div 
             style={{ 
