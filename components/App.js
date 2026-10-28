@@ -65,7 +65,7 @@ function NotificationCard({ notif, onDismiss }) {
       <div className="msg" style={{ 
         minWidth: 280,
         maxWidth: '90vw',
-        padding: '12px 16px', 
+        padding: '10px 14px', 
         textAlign: 'center',
         animation: 'slideDown .3s cubic-bezier(.3,1.6,.5,1)',
         zIndex: 100,
@@ -81,36 +81,36 @@ function NotificationCard({ notif, onDismiss }) {
           onClick={onDismiss}
           style={{
             position: 'absolute',
-            top: 4,
-            right: 4,
-            width: 20,
-            height: 20,
+            top: 2,
+            right: 2,
+            width: 18,
+            height: 18,
             borderRadius: '50%',
             border: 'none',
             background: 'var(--c2)',
             color: 'var(--mut)',
             cursor: 'pointer',
-            fontSize: 14,
+            fontSize: 12,
             lineHeight: 1,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center'
           }}
         >×</button>
-        <div style={{ fontSize: 18, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 4 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 2 }}>
           {isWin ? 'NET PROFIT' : 'NET LOSS'}
         </div>
-        <div style={{ fontSize: 13, color: 'var(--tx)', marginBottom: 6, fontWeight: 500 }}>{title}</div>
-        <div style={{ fontSize: 20, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 8 }}>
+        <div style={{ fontSize: 12, color: 'var(--mut)', marginBottom: 4, fontWeight: 500 }}>{title}</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: isWin ? 'var(--ac)' : 'var(--bad)' }}>
           {message}
         </div>
         {/* Animated timeout progress bar */}
         <div style={{ 
-          height: 3, 
-          borderRadius: 2, 
+          height: 2, 
+          borderRadius: 1, 
           background: 'var(--c2)', 
           overflow: 'hidden',
-          marginTop: 8
+          marginTop: 6
         }}>
           <div 
             style={{ 
@@ -118,7 +118,7 @@ function NotificationCard({ notif, onDismiss }) {
               width: `${progress}%`, 
               background: isWin ? 'var(--ac)' : 'var(--bad)',
               transition: 'width 0.05s linear',
-              borderRadius: 2
+              borderRadius: 1
             }} 
           />
         </div>
