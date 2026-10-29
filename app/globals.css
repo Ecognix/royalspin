@@ -39,7 +39,7 @@ main{max-width:760px;margin:auto;padding:70px 14px 40px}main>*{animation:fin .35
 .tile span{position:relative;padding:12px 14px;font-weight:800;font-size:17px;text-shadow:0 2px 6px #0008;width:100%;background:linear-gradient(transparent,#0009)}
 .tile.off{filter:grayscale(1) opacity(.5)}
 .big{font-size:44px;font-weight:800;text-align:center;padding:10px 0}.small{color:var(--mut);font-size:12px}
-.msg{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--c2);padding:10px 16px;border-radius:12px;font-weight:600;z-index:50;box-shadow:0 8px 24px #0008;max-width:90%;animation:fin .2s}
+.msg{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translate(-50%, 0);background:var(--c2);padding:10px 16px;border-radius:12px;font-weight:600;z-index:200;box-shadow:0 8px 24px #0008;max-width:90%;animation:toastIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both}
 
 .winloss-card{position:fixed;left:50%;bottom:calc(80px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--c1);border:1px solid var(--ln);border-radius:12px;box-shadow:0 12px 32px #000a;max-width:90%;z-index:100}
 @keyframes slideUp{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
@@ -76,3 +76,14 @@ canvas{width:100%;height:auto;aspect-ratio:16/9;background:radial-gradient(circl
 .numgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px 10px;justify-items:center;margin:0}
 .cbtn.sm{padding:8px 0;font-size:13px;border-radius:10px}
 .lock{position:absolute;inset:0;background:#000b;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:72px;font-weight:800;z-index:2}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}

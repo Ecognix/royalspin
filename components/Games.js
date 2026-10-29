@@ -268,6 +268,8 @@ function draw(cv, s) {
 
 export function Crash({ amt }) {
   const cv = useRef(null), [s, setS] = useState(() => cstate())
+  const [cbet, setCbet] = useState(() => user()?.cbet || null)
+
   useEffect(() => {
     const iv = setInterval(() => {
       const st = cstate()
@@ -277,6 +279,7 @@ export function Crash({ amt }) {
       const myP = curUser?.cbet
       if (st.st === 'crash' && myP && !myP.out && myP.i === st.i) {
         myP.out = 1
+        setCbet(null)
         pay('crash', myP.a, 0)
         notify({ 
           type: 'loss', 
@@ -288,41 +291,56 @@ export function Crash({ amt }) {
     }, 100)
     return () => clearInterval(iv)
   }, [])
-  const u = user(), P = u.cbet
+
+  const u = user()
+  const P = cbet || u?.cbet
+
   async function act() {
     const st = cstate()
     if (P && !P.out && P.i === st.i && st.st === 'fly') {
-      P.out = 1; const w = P.a * st.m; pay('crash', P.a, w)
-      notify({ type: 'win', title: `Crash - Cashed Out`, message: `Win ₹${f(w)}`, details: `Cashed out at ${f(st.m)}×` })
+      P.out = 1
+      setCbet(null)
+      const w = P.a * st.m
+      pay('crash', P.a, w)
+      notify({ type: 'win', title: 'Crash - Cashed Out', message: 'Win ₹' + f(w), details: 'Cashed out at ' + f(st.m) + '×' })
       return
     }
     if (P && !P.out && P.i >= st.i) return toast('Bet already placed')
-    const a = place('crash', amt); if (!a) return
-    u.cbet = { i: st.st === 'bet' ? st.i : st.ni, a, out: 0 }
+    const a = place('crash', amt)
+    if (!a) return
+    const newBet = { i: st.st === 'bet' ? st.i : st.ni, a, out: 0 }
+    if (u) u.cbet = newBet
+    setCbet(newBet)
     notify({ type: 'bet', title: 'Bet Placed', message: st.st === 'bet' ? `Bet ₹${f(amt)} placed` : `Bet ₹${f(amt)} queued for next round` })
   }
+
   async function cancelBet() {
     if (P && !P.out) {
       const refund = P.a
-      u.balance += refund
-      u.total_wagered = Math.max(0, (u.total_wagered || 0) - refund)
-      u.total_bets = Math.max(0, (u.total_bets || 0) - 1)
-      u.cbet = null
-      if (typeof window !== 'undefined') {
+      if (u) {
+        u.balance += refund
+        u.total_wagered = Math.max(0, (u.total_wagered || 0) - refund)
+        u.total_bets = Math.max(0, (u.total_bets || 0) - 1)
+        u.cbet = null
+      }
+      setCbet(null)
+      if (typeof window !== 'undefined' && u) {
         sessionStorage.setItem('rs-user', JSON.stringify(u))
       }
       notifySubscribers()
       try {
-        const updateData = {
-          balance: u.balance,
-          total_wagered: u.total_wagered,
-          total_bets: u.total_bets,
-          updated_at: new Date().toISOString()
-        }
-        if (u.id) {
-          await supabase.from('users').update(updateData).eq('id', u.id)
-        } else {
-          await supabase.from('users').update(updateData).eq('phone', u.phone)
+        if (u) {
+          const updateData = {
+            balance: u.balance,
+            total_wagered: u.total_wagered,
+            total_bets: u.total_bets,
+            updated_at: new Date().toISOString()
+          }
+          if (u.id) {
+            await supabase.from('users').update(updateData).eq('id', u.id)
+          } else {
+            await supabase.from('users').update(updateData).eq('phone', u.phone)
+          }
         }
       } catch (err) {
         console.error('cancelBet error:', err)
@@ -330,11 +348,13 @@ export function Crash({ amt }) {
       notify({ type: 'bet', title: 'Bet Cancelled', message: `₹${f(refund)} returned to balance` })
     }
   }
+
   const mine = P && !P.out && P.i === s.i, q = P && !P.out && P.i > s.i, co = mine && s.st === 'fly', crashed = s.st === 'crash'
   const canCancel = (mine || q) && s.st === 'bet' && !co
   const label = mine ? (co ? `Cash out ₹${f(P.a * s.m)}` : s.st === 'bet' ? 'Bet placed ✓' : 'Settling') : q ? 'Queued for next round ✓' : s.st === 'bet' ? `Bet ₹${f(amt)}` : `Bet next round ₹${f(amt)}`
   const bk = Math.floor(Date.now() / BLK)
   const hist = sched(bk - 1).concat(sched(bk)).filter((r) => r.id < s.i).slice(-12).reverse()
+
   return (
     <>
       <div className="hist">{hist.map((r) => <b key={r.id} style={{ color: r.cp < 2 ? 'var(--bad)' : 'var(--ac)' }}>{f(r.cp)}×</b>)}</div>

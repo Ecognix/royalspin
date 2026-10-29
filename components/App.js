@@ -131,7 +131,7 @@ import {
 
   createRequest, getAllUsers, getAllBets, getAllRequests,
 
-  updateRequest, updateUser, updateConfig, isAdminPhone
+  updateRequest, updateUser, updateConfig, isAdminPhone, supabase
 
 } from '../lib/supabase-db'
 
@@ -215,7 +215,7 @@ export function Notifications() {
 
       {toasts.map((t) => (
 
-        <div key={t.id} className="msg" style={{ animation: 'fin .2s', zIndex: 200 }}>
+        <div key={t.id} className="msg">
 
           {t.text}
 
@@ -281,7 +281,7 @@ function NotificationCard({ notif, onDismiss }) {
 
     return (
 
-      <div className="msg" style={{ animation: 'fin .2s', zIndex: 100 }}>{message}</div>
+      <div className="msg">{message}</div>
 
     )
 
@@ -727,7 +727,11 @@ function Main() {
 
   const [amt, setAmt] = useState(10), [open, setOpen] = useState(false), menuRef = useRef(null)
 
-  useEffect(() => { const iv = setInterval(tick, 200); return () => clearInterval(iv) }, [])
+  useEffect(() => {
+    const iv1 = setInterval(tick, 200)
+    const iv2 = setInterval(refreshUser, 3000)
+    return () => { clearInterval(iv1); clearInterval(iv2) }
+  }, [])
 
   useEffect(() => {
 
