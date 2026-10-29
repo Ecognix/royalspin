@@ -127,7 +127,7 @@ import {
 
   db, useDB, getMe, setMe, user, toast, f, 
 
-  signup, login, adminLogin, refreshUser,
+  signup, login, adminLogin, refreshUser, notifySubscribers,
 
   createRequest, getAllUsers, getAllBets, getAllRequests,
 
@@ -733,6 +733,40 @@ function Main() {
     return () => { clearInterval(iv1); clearInterval(iv2) }
   }, [])
 
+  // Instant Realtime balance sync upon admin deposit/withdrawal approval
+  useEffect(() => {
+    const curPhone = getMe()
+    if (!curPhone) return
+    const channel = supabase
+      .channel('user-bal-sync-' + curPhone)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'users',
+        filter: 'phone=eq.' + curPhone
+      }, (payload) => {
+        if (payload?.new) {
+          const freshUser = payload.new
+          const cur = user()
+          if (cur) {
+            cur.balance = Number(freshUser.balance)
+            cur.bonus_balance = Number(freshUser.bonus_balance || 0)
+            cur.bonus_needed = Number(freshUser.bonus_needed || 0)
+            cur.is_admin = freshUser.is_admin
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem('rs-user', JSON.stringify(cur))
+            }
+          }
+          notifySubscribers()
+        }
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [me])
+
   useEffect(() => {
 
     const c = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setOpen(false) }
@@ -803,19 +837,19 @@ function Main() {
 
         <div className="row" style={{ flex: 'none', gap: 10 }}>
 
-          <div style={{ display: 'inline-flex', alignItems: 'center', background: 'var(--c2)', border: '1px solid var(--ln)', borderRadius: 20, padding: '2px 3px 2px 10px', gap: 6, height: 34 }}>
-            <span style={{ cursor: 'pointer', fontWeight: 700, color: 'var(--ac)', fontSize: 13, whiteSpace: 'nowrap' }} onClick={() => go('wallet')}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', background: '#000000', border: '1px solid #222', borderRadius: 20, padding: '3px 4px 3px 12px', gap: 8, height: 38, boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
+            <span style={{ cursor: 'pointer', fontWeight: 800, color: 'var(--ac)', fontSize: 14, whiteSpace: 'nowrap', letterSpacing: '0.2px' }} onClick={() => go('wallet')}>
               {u.hide_balance ? '••••' : '₹' + f(u.balance)}
             </span>
             <button 
               type="button"
               onClick={() => go('wallet')}
               style={{
-                width: 26,
-                height: 26,
+                width: 28,
+                height: 28,
                 borderRadius: '50%',
                 background: 'var(--ac)',
-                color: '#04200f',
+                color: '#000000',
                 border: 'none',
                 fontSize: 18,
                 fontWeight: 900,
@@ -828,7 +862,7 @@ function Main() {
                 flexShrink: 0
               }}
             >
-              +
+              <span style={{ transform: 'translateY(-1px)', display: 'block', pointerEvents: 'none' }}>+</span>
             </button>
           </div>
 

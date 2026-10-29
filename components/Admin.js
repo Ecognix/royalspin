@@ -4,9 +4,475 @@ import { useEffect, useState } from 'react'
 import { useDB, adminLogin, toast, f, addtx, supabase, updateConfig } from '../lib/supabase-db'
 import { GAMES } from './meta'
 import { Notifications } from './App'
+import { colorResult, ballClass, cpOf, PERIOD, cstate } from '../lib/fair'
 
 // Admin console (route: /console). Separate login, separate session key,
 // not linked from the player app. Default login: admin / admin123 (change it in Security).
+
+// ------------------------------------------------------------------ Color Rounds Admin
+function ColorRoundsAdmin() {
+  const [colorBets, setColorBets] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(0)
+  const [expandedPeriod, setExpandedPeriod] = useState(null)
+  const [now, setNow] = useState(Date.now())
+
+  useEffect(() => {
+    const iv = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(iv)
+  }, [])
+
+  const currentPeriod = Math.floor(now / PERIOD)
+  const left = Math.ceil(((currentPeriod + 1) * PERIOD - now) / 1000)
+
+  const fetchColorBets = async () => {
+    setLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('color_bets')
+        .select('*, users(phone, username)')
+        .order('created_at', { ascending: false })
+        .limit(2000)
+      if (data) setColorBets(data)
+    } catch (e) {
+      console.error('fetchColorBets error:', e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchColorBets()
+    const iv = setInterval(fetchColorBets, 4000)
+    return () => clearInterval(iv)
+  }, [])
+
+  // Group bets by period_id
+  const periodMap = {}
+  colorBets.forEach(b => {
+    const pid = b.period_id
+    if (!periodMap[pid]) {
+      periodMap[pid] = {
+        period_id: pid,
+        totalBet: 0,
+        totalWin: 0,
+        bets: [],
+        options: {
+          green: 0, violet: 0, red: 0,
+          big: 0, small: 0,
+          nums: { 0:0, 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0 }
+        }
+      }
+    }
+    const amt = Number(b.amount || 0)
+    const win = Number(b.win_amount || 0)
+    periodMap[pid].totalBet += amt
+    periodMap[pid].totalWin += win
+    periodMap[pid].bets.push(b)
+
+    const val = String(b.bet_value || '').toLowerCase()
+    if (val === 'green' || val === 'violet' || val === 'red') {
+      periodMap[pid].options[val] = (periodMap[pid].options[val] || 0) + amt
+    } else if (val === 'big' || val === 'small') {
+      periodMap[pid].options[val] = (periodMap[pid].options[val] || 0) + amt
+    } else if (!isNaN(val) && periodMap[pid].options.nums[val] !== undefined) {
+      periodMap[pid].options.nums[val] = (periodMap[pid].options.nums[val] || 0) + amt
+    }
+  })
+
+  // Ensure current and recent periods are in the list even if 0 bets
+  for (let i = 0; i < 40; i++) {
+    const pid = currentPeriod - i
+    if (!periodMap[pid]) {
+      periodMap[pid] = {
+        period_id: pid,
+        totalBet: 0,
+        totalWin: 0,
+        bets: [],
+        options: {
+          green: 0, violet: 0, red: 0,
+          big: 0, small: 0,
+          nums: { 0:0, 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0 }
+        }
+      }
+    }
+  }
+
+  const allPeriods = Object.values(periodMap).sort((a, b) => b.period_id - a.period_id)
+  const PAGE_SIZE = 10
+  const totalPages = Math.max(1, Math.ceil(allPeriods.length / PAGE_SIZE))
+  const displayed = allPeriods.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+
+  const sizeOf = (n) => (n >= 5 ? 'Big' : 'Small')
+  const sizeCol = (n) => (n >= 5 ? '#f59e0b' : '#3b82f6')
+  const cname = (n) => (n === 0 ? 'Red+Violet' : n === 5 ? 'Green+Violet' : n % 2 ? 'Green' : 'Red')
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+        <div>
+          <b>Color Trading Rounds & Bets</b>
+          <div className="small" style={{ color: 'var(--mut)' }}>Live cumulative amounts per option & settlement results</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span className="live" style={{ background: 'var(--ac)' }} />
+          <span style={{ fontSize: 12, color: 'var(--ac)', fontWeight: 700 }}>Period #{currentPeriod} ({left}s)</span>
+          <button onClick={fetchColorBets} style={{ padding: '3px 8px', fontSize: 11, background: 'var(--c2)' }}>Refresh</button>
+        </div>
+      </div>
+
+      <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 620 }}>
+          <thead>
+            <tr style={{ color: 'var(--mut)', borderBottom: '1px solid var(--ln)', textAlign: 'left' }}>
+              <th style={{ padding: '8px 6px' }}>Period</th>
+              <th style={{ padding: '8px 6px' }}>Total Bets</th>
+              <th style={{ padding: '8px 6px' }}>Cumulative By Option</th>
+              <th style={{ padding: '8px 6px' }}>Outcome</th>
+              <th style={{ padding: '8px 6px' }}>House PnL</th>
+              <th style={{ padding: '8px 6px', textAlign: 'right' }}>Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            {displayed.map((p) => {
+              const isLive = p.period_id === currentPeriod
+              const n = isLive ? null : colorResult(p.period_id)
+              const housePnl = p.totalBet - p.totalWin
+              const isExpanded = expandedPeriod === p.period_id
+              const opt = p.options
+
+              return (
+                <>
+                  <tr key={p.period_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: isLive ? 'rgba(46,230,122,0.04)' : undefined }}>
+                    <td style={{ padding: '9px 6px', fontWeight: 700 }}>
+                      #{p.period_id}
+                      {isLive && <span style={{ marginLeft: 6, fontSize: 10, background: 'var(--ac)', color: '#000', padding: '1px 5px', borderRadius: 8, fontWeight: 900 }}>LIVE</span>}
+                    </td>
+                    <td style={{ padding: '9px 6px' }}>
+                      <b style={{ color: p.totalBet > 0 ? 'var(--ac)' : 'inherit' }}>₹{f(p.totalBet)}</b>
+                      <div className="small" style={{ color: 'var(--mut)' }}>{p.bets.length} bet{p.bets.length === 1 ? '' : 's'}</div>
+                    </td>
+                    <td style={{ padding: '9px 6px' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxWidth: 260, fontSize: 11 }}>
+                        {opt.green > 0 && <span style={{ background: '#2e9e5b22', color: '#2e9e5b', border: '1px solid #2e9e5b44', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>G: ₹{f(opt.green)}</span>}
+                        {opt.violet > 0 && <span style={{ background: '#8e44ad22', color: '#b975e6', border: '1px solid #8e44ad44', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>V: ₹{f(opt.violet)}</span>}
+                        {opt.red > 0 && <span style={{ background: '#e5393522', color: '#ff6b6b', border: '1px solid #e5393544', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>R: ₹{f(opt.red)}</span>}
+                        {opt.big > 0 && <span style={{ background: '#f59e0b22', color: '#f59e0b', border: '1px solid #f59e0b44', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>Big: ₹{f(opt.big)}</span>}
+                        {opt.small > 0 && <span style={{ background: '#3b82f622', color: '#60a5fa', border: '1px solid #3b82f644', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>Small: ₹{f(opt.small)}</span>}
+                        {Object.entries(opt.nums).filter(([, amt]) => amt > 0).map(([num, amt]) => (
+                          <span key={num} style={{ background: 'rgba(255,255,255,0.06)', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>#{num}: ₹{f(amt)}</span>
+                        ))}
+                        {p.totalBet === 0 && <span style={{ color: 'var(--mut)' }}>No bets placed</span>}
+                      </div>
+                    </td>
+                    <td style={{ padding: '9px 6px' }}>
+                      {isLive ? (
+                        <span style={{ color: '#ffd54f', fontSize: 12, fontWeight: 700 }}>In progress ({left}s)</span>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span className={'ball sm ' + ballClass(n)}>{n}</span>
+                          <span style={{ color: sizeCol(n), fontWeight: 700, fontSize: 12 }}>{sizeOf(n)}</span>
+                          <span style={{ fontSize: 11, color: 'var(--mut)' }}>{cname(n)}</span>
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ padding: '9px 6px', fontWeight: 700, color: housePnl > 0 ? 'var(--ac)' : housePnl < 0 ? 'var(--bad)' : 'inherit' }}>
+                      {isLive ? '—' : (housePnl >= 0 ? '+' : '') + '₹' + f(housePnl)}
+                    </td>
+                    <td style={{ padding: '9px 6px', textAlign: 'right' }}>
+                      <button 
+                        onClick={() => setExpandedPeriod(isExpanded ? null : p.period_id)}
+                        disabled={p.bets.length === 0}
+                        style={{ padding: '3px 8px', fontSize: 11, background: isExpanded ? 'var(--ac)' : 'var(--c2)', color: isExpanded ? '#000' : 'inherit' }}
+                      >
+                        {isExpanded ? 'Hide' : `${p.bets.length} Bets`}
+                      </button>
+                    </td>
+                  </tr>
+
+                  {isExpanded && (
+                    <tr style={{ background: 'rgba(0,0,0,0.3)' }}>
+                      <td colSpan="6" style={{ padding: '10px 12px' }}>
+                        <b style={{ fontSize: 12, color: 'var(--ac)' }}>All Bets Placed for Period #{p.period_id}:</b>
+                        <table style={{ width: '100%', marginTop: 6, fontSize: 12 }}>
+                          <thead>
+                            <tr style={{ color: 'var(--mut)', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                              <th style={{ padding: '4px' }}>Player</th>
+                              <th style={{ padding: '4px' }}>Type</th>
+                              <th style={{ padding: '4px' }}>Choice</th>
+                              <th style={{ padding: '4px' }}>Bet Amount</th>
+                              <th style={{ padding: '4px' }}>Win Amount</th>
+                              <th style={{ padding: '4px' }}>Time</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {p.bets.map((b) => (
+                              <tr key={b.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                                <td style={{ padding: '4px' }}>{b.users?.phone || b.users?.username || 'User'}</td>
+                                <td style={{ padding: '4px', textTransform: 'capitalize' }}>{b.bet_type}</td>
+                                <td style={{ padding: '4px', fontWeight: 700, textTransform: 'capitalize' }}>{b.bet_value}</td>
+                                <td style={{ padding: '4px', fontWeight: 700 }}>₹{f(b.amount)}</td>
+                                <td style={{ padding: '4px', fontWeight: 700, color: Number(b.win_amount) > 0 ? 'var(--ac)' : 'inherit' }}>
+                                  ₹{f(b.win_amount || 0)}
+                                </td>
+                                <td style={{ padding: '4px', color: 'var(--mut)', fontSize: 11 }}>{new Date(b.created_at).toLocaleTimeString()}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, fontSize: 12 }}>
+          <button 
+            type="button"
+            disabled={page === 0} 
+            onClick={() => setPage(p => Math.max(0, p - 1))}
+            style={{ padding: '5px 12px', background: 'var(--c2)', opacity: page === 0 ? 0.4 : 1, cursor: page === 0 ? 'default' : 'pointer' }}
+          >
+            ← Previous
+          </button>
+          <span style={{ color: 'var(--mut)' }}>Page {page + 1} of {totalPages}</span>
+          <button 
+            type="button"
+            disabled={(page + 1) * PAGE_SIZE >= allPeriods.length} 
+            onClick={() => setPage(p => p + 1)}
+            style={{ padding: '5px 12px', background: 'var(--c2)', opacity: (page + 1) * PAGE_SIZE >= allPeriods.length ? 0.4 : 1, cursor: (page + 1) * PAGE_SIZE >= allPeriods.length ? 'default' : 'pointer' }}
+          >
+            Next →
+          </button>
+        </div>
+      )}
+    </>
+  )
+}
+
+// ------------------------------------------------------------------ Crash Rounds Admin
+function CrashRoundsAdmin() {
+  const [crashBets, setCrashBets] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(0)
+  const [expandedRound, setExpandedRound] = useState(null)
+  const [st, setSt] = useState(() => cstate())
+
+  useEffect(() => {
+    const iv = setInterval(() => setSt(cstate()), 1000)
+    return () => clearInterval(iv)
+  }, [])
+
+  const fetchCrashBets = async () => {
+    setLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('bets')
+        .select('*, users(phone, username)')
+        .eq('game', 'crash')
+        .order('created_at', { ascending: false })
+        .limit(2000)
+      if (data) setCrashBets(data)
+    } catch (e) {
+      console.error('fetchCrashBets error:', e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchCrashBets()
+    const iv = setInterval(fetchCrashBets, 4000)
+    return () => clearInterval(iv)
+  }, [])
+
+  // Group bets by round_id
+  const roundMap = {}
+  crashBets.forEach(b => {
+    const rid = b.details?.round_id || Math.floor(new Date(b.created_at).getTime() / 15000)
+    if (!roundMap[rid]) {
+      roundMap[rid] = {
+        round_id: rid,
+        totalBet: 0,
+        totalWin: 0,
+        bets: []
+      }
+    }
+    const amt = Number(b.amount || 0)
+    const win = Number(b.win_amount || 0)
+    roundMap[rid].totalBet += amt
+    roundMap[rid].totalWin += win
+    roundMap[rid].bets.push(b)
+  })
+
+  // Ensure current round and past 30 rounds exist in the list
+  const curRound = st?.i || Math.floor(Date.now() / 15000)
+  for (let i = 0; i < 30; i++) {
+    const rid = curRound - i
+    if (!roundMap[rid]) {
+      roundMap[rid] = {
+        round_id: rid,
+        totalBet: 0,
+        totalWin: 0,
+        bets: []
+      }
+    }
+  }
+
+  const allRounds = Object.values(roundMap).sort((a, b) => b.round_id - a.round_id)
+  const PAGE_SIZE = 10
+  const totalPages = Math.max(1, Math.ceil(allRounds.length / PAGE_SIZE))
+  const displayed = allRounds.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+        <div>
+          <b>Crash Game Rounds & Bets</b>
+          <div className="small" style={{ color: 'var(--mut)' }}>Live cumulative bet pools, multipliers & payouts</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span className="live" style={{ background: st.st === 'crash' ? 'var(--bad)' : 'var(--ac)' }} />
+          <span style={{ fontSize: 12, color: 'var(--ac)', fontWeight: 700 }}>
+            Round #{st.i} ({st.st === 'bet' ? 'Betting ' + st.left + 's' : st.st === 'crash' ? 'Crashed' : f(st.m) + '× Flying'})
+          </span>
+          <button onClick={fetchCrashBets} style={{ padding: '3px 8px', fontSize: 11, background: 'var(--c2)' }}>Refresh</button>
+        </div>
+      </div>
+
+      <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 620 }}>
+          <thead>
+            <tr style={{ color: 'var(--mut)', borderBottom: '1px solid var(--ln)', textAlign: 'left' }}>
+              <th style={{ padding: '8px 6px' }}>Round</th>
+              <th style={{ padding: '8px 6px' }}>Crash Multiplier</th>
+              <th style={{ padding: '8px 6px' }}>Total Bet Pool</th>
+              <th style={{ padding: '8px 6px' }}>Total Payout</th>
+              <th style={{ padding: '8px 6px' }}>House PnL</th>
+              <th style={{ padding: '8px 6px', textAlign: 'right' }}>Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            {displayed.map((r) => {
+              const isLive = r.round_id === curRound
+              let crashPoint = null
+              try { crashPoint = cpOf(r.round_id) } catch (e) { crashPoint = 1.95 }
+              const housePnl = r.totalBet - r.totalWin
+              const isExpanded = expandedRound === r.round_id
+
+              return (
+                <>
+                  <tr key={r.round_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: isLive ? 'rgba(46,230,122,0.04)' : undefined }}>
+                    <td style={{ padding: '9px 6px', fontWeight: 700 }}>
+                      Round #{r.round_id}
+                      {isLive && <span style={{ marginLeft: 6, fontSize: 10, background: 'var(--ac)', color: '#000', padding: '1px 5px', borderRadius: 8, fontWeight: 900 }}>LIVE</span>}
+                    </td>
+                    <td style={{ padding: '9px 6px' }}>
+                      {isLive ? (
+                        <b style={{ color: st.st === 'crash' ? 'var(--bad)' : 'var(--ac)' }}>
+                          {st.st === 'bet' ? 'Betting Phase' : st.st === 'crash' ? 'Crashed at ' + f(st.m) + '×' : f(st.m) + '× (Flying)'}
+                        </b>
+                      ) : (
+                        <b style={{ color: crashPoint < 2 ? 'var(--bad)' : 'var(--ac)' }}>{f(crashPoint)}×</b>
+                      )}
+                    </td>
+                    <td style={{ padding: '9px 6px' }}>
+                      <b style={{ color: r.totalBet > 0 ? 'var(--ac)' : 'inherit' }}>₹{f(r.totalBet)}</b>
+                      <div className="small" style={{ color: 'var(--mut)' }}>{r.bets.length} bet{r.bets.length === 1 ? '' : 's'}</div>
+                    </td>
+                    <td style={{ padding: '9px 6px', fontWeight: 700, color: r.totalWin > 0 ? 'var(--ac)' : 'inherit' }}>
+                      ₹{f(r.totalWin)}
+                    </td>
+                    <td style={{ padding: '9px 6px', fontWeight: 700, color: housePnl > 0 ? 'var(--ac)' : housePnl < 0 ? 'var(--bad)' : 'inherit' }}>
+                      {isLive ? '—' : (housePnl >= 0 ? '+' : '') + '₹' + f(housePnl)}
+                    </td>
+                    <td style={{ padding: '9px 6px', textAlign: 'right' }}>
+                      <button 
+                        onClick={() => setExpandedRound(isExpanded ? null : r.round_id)}
+                        disabled={r.bets.length === 0}
+                        style={{ padding: '3px 8px', fontSize: 11, background: isExpanded ? 'var(--ac)' : 'var(--c2)', color: isExpanded ? '#000' : 'inherit' }}
+                      >
+                        {isExpanded ? 'Hide' : `${r.bets.length} Bets`}
+                      </button>
+                    </td>
+                  </tr>
+
+                  {isExpanded && (
+                    <tr style={{ background: 'rgba(0,0,0,0.3)' }}>
+                      <td colSpan="6" style={{ padding: '10px 12px' }}>
+                        <b style={{ fontSize: 12, color: 'var(--ac)' }}>All Bets Placed in Round #{r.round_id}:</b>
+                        <table style={{ width: '100%', marginTop: 6, fontSize: 12 }}>
+                          <thead>
+                            <tr style={{ color: 'var(--mut)', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                              <th style={{ padding: '4px' }}>Player</th>
+                              <th style={{ padding: '4px' }}>Bet Amount</th>
+                              <th style={{ padding: '4px' }}>Multiplier</th>
+                              <th style={{ padding: '4px' }}>Payout</th>
+                              <th style={{ padding: '4px' }}>Status</th>
+                              <th style={{ padding: '4px' }}>Time</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {r.bets.map((b) => {
+                              const bMult = b.details?.multiplier ? f(b.details.multiplier) + '×' : '—'
+                              const bStatus = b.details?.status || (Number(b.win_amount) > 0 ? 'Cashed Out' : 'Crashed')
+                              return (
+                                <tr key={b.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                                  <td style={{ padding: '4px' }}>{b.users?.phone || b.users?.username || 'User'}</td>
+                                  <td style={{ padding: '4px', fontWeight: 700 }}>₹{f(b.amount)}</td>
+                                  <td style={{ padding: '4px', fontWeight: 700, color: 'var(--ac)' }}>{bMult}</td>
+                                  <td style={{ padding: '4px', fontWeight: 700, color: Number(b.win_amount) > 0 ? 'var(--ac)' : 'inherit' }}>
+                                    ₹{f(b.win_amount || 0)}
+                                  </td>
+                                  <td style={{ padding: '4px', textTransform: 'capitalize', color: bStatus.includes('Cash') || Number(b.win_amount) > 0 ? 'var(--ac)' : 'var(--bad)', fontWeight: 600 }}>
+                                    {bStatus}
+                                  </td>
+                                  <td style={{ padding: '4px', color: 'var(--mut)', fontSize: 11 }}>{new Date(b.created_at).toLocaleTimeString()}</td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, fontSize: 12 }}>
+          <button 
+            type="button"
+            disabled={page === 0} 
+            onClick={() => setPage(p => Math.max(0, p - 1))}
+            style={{ padding: '5px 12px', background: 'var(--c2)', opacity: page === 0 ? 0.4 : 1, cursor: page === 0 ? 'default' : 'pointer' }}
+          >
+            ← Previous
+          </button>
+          <span style={{ color: 'var(--mut)' }}>Page {page + 1} of {totalPages}</span>
+          <button 
+            type="button"
+            disabled={(page + 1) * PAGE_SIZE >= allRounds.length} 
+            onClick={() => setPage(p => p + 1)}
+            style={{ padding: '5px 12px', background: 'var(--c2)', opacity: (page + 1) * PAGE_SIZE >= allRounds.length ? 0.4 : 1, cursor: (page + 1) * PAGE_SIZE >= allRounds.length ? 'default' : 'pointer' }}
+          >
+            Next →
+          </button>
+        </div>
+      )}
+    </>
+  )
+}
+
 export default function Admin() {
   const [ok, setOk] = useState(false), [authed, setAuthed] = useState(false)
   useEffect(() => { setOk(true); setAuthed(sessionStorage.getItem('rs-admin') === '1') }, [])
@@ -44,6 +510,8 @@ function Login({ onIn }) {
 
 const TABS = [
   { id: 'over', label: 'Overview' },
+  { id: 'color_rounds', label: 'Color Rounds' },
+  { id: 'crash_rounds', label: 'Crash Rounds' },
   { id: 'games', label: 'Games' },
   { id: 'deposits', label: 'Deposits' },
   { id: 'withdrawals', label: 'Withdrawals' },
@@ -498,6 +966,13 @@ function Panel({ onOut }) {
         </div>
 
         <div className="card">
+          {/* TAB 1: OVERVIEW */}
+                    {/* TAB: COLOR ROUNDS */}
+          {at === 'color_rounds' && <ColorRoundsAdmin />}
+
+          {/* TAB: CRASH ROUNDS */}
+          {at === 'crash_rounds' && <CrashRoundsAdmin />}
+
           {/* TAB 1: OVERVIEW */}
           {at === 'over' && (
             <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>

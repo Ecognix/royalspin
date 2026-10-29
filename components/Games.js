@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { useDB, place, pay, toast, notify, notifySubscribers, f, user, supabase } from '../lib/supabase-db'
-import { E, rnd, BETW, G, BLK, sched, cstate, PERIOD, LOCK, colorResult, colorResultCache, computeLowestBetResult, ballClass } from '../lib/fair'
+import { useDB, place, pay, cancelCrashBet, toast, notify, notifySubscribers, f, user, supabase } from '../lib/supabase-db'
+import { E, rnd, BETW, G, BLK, sched, cstate, cpOf, PERIOD, LOCK, colorResult, colorResultCache, computeLowestBetResult, ballClass } from '../lib/fair'
 
 const FULL = { width: '100%' }
 const comb = (n, k) => { if (k < 0 || k > n) return 0; let r = 1; for (let i = 1; i <= k; i++) r = (r * (n - k + i)) / i; return r }
@@ -267,6 +267,7 @@ function draw(cv, s) {
 }
 
 export function Crash({ amt }) {
+  const D = useDB()
   const cv = useRef(null), [s, setS] = useState(() => cstate())
   const [cbet, setCbet] = useState(() => user()?.cbet || null)
 
@@ -280,7 +281,8 @@ export function Crash({ amt }) {
       if (st.st === 'crash' && myP && !myP.out && myP.i === st.i) {
         myP.out = 1
         setCbet(null)
-        pay('crash', myP.a, 0)
+        if (curUser) delete curUser.cbet
+        pay('crash', myP.a, 0, undefined, { round_id: st.i, multiplier: st.m, status: 'crashed' })
         notify({ 
           type: 'loss', 
           title: 'Crash - Crashed', 
@@ -297,15 +299,19 @@ export function Crash({ amt }) {
 
   async function act() {
     const st = cstate()
+    // Cash out active flight
     if (P && !P.out && P.i === st.i && st.st === 'fly') {
       P.out = 1
       setCbet(null)
+      if (u) delete u.cbet
       const w = P.a * st.m
-      pay('crash', P.a, w)
+      pay('crash', P.a, w, undefined, { round_id: st.i, multiplier: st.m, status: 'cashed_out' })
       notify({ type: 'win', title: 'Crash - Cashed Out', message: 'Win ₹' + f(w), details: 'Cashed out at ' + f(st.m) + '×' })
       return
     }
+    // Block duplicate bets for same round
     if (P && !P.out && P.i >= st.i) return toast('Bet already placed')
+
     const a = place('crash', amt)
     if (!a) return
     const newBet = { i: st.st === 'bet' ? st.i : st.ni, a, out: 0 }
@@ -317,34 +323,9 @@ export function Crash({ amt }) {
   async function cancelBet() {
     if (P && !P.out) {
       const refund = P.a
-      if (u) {
-        u.balance += refund
-        u.total_wagered = Math.max(0, (u.total_wagered || 0) - refund)
-        u.total_bets = Math.max(0, (u.total_bets || 0) - 1)
-        u.cbet = null
-      }
       setCbet(null)
-      if (typeof window !== 'undefined' && u) {
-        sessionStorage.setItem('rs-user', JSON.stringify(u))
-      }
-      notifySubscribers()
-      try {
-        if (u) {
-          const updateData = {
-            balance: u.balance,
-            total_wagered: u.total_wagered,
-            total_bets: u.total_bets,
-            updated_at: new Date().toISOString()
-          }
-          if (u.id) {
-            await supabase.from('users').update(updateData).eq('id', u.id)
-          } else {
-            await supabase.from('users').update(updateData).eq('phone', u.phone)
-          }
-        }
-      } catch (err) {
-        console.error('cancelBet error:', err)
-      }
+      if (u) delete u.cbet
+      cancelCrashBet(refund)
       notify({ type: 'bet', title: 'Bet Cancelled', message: `₹${f(refund)} returned to balance` })
     }
   }
@@ -391,6 +372,7 @@ const cname = (n) => (n === 0 ? 'Red + Violet' : n === 5 ? 'Green + Violet' : n 
 export function Color({ amt }) {
   const [now, setNow] = useState(() => Date.now()), [sel, setSel] = useState(null)
   const [myBets, setMyBets] = useState([])
+  const [historyPage, setHistoryPage] = useState(0)
   const [placing, setPlacing] = useState(false)
   
   const [, setRndTick] = useState(0)
@@ -470,7 +452,8 @@ export function Color({ amt }) {
   }, [id])
 
   const last = colorResult(id - 1)
-  const past = Array.from({ length: 15 }, (_, k) => id - 1 - k)
+  const totalPast = Array.from({ length: 100 }, (_, k) => id - 1 - k)
+  const past = totalPast.slice(historyPage * 10, (historyPage + 1) * 10)
   const same = (a, b) => a && b && a.type === b.type && a.val === b.val
   const pick = (type, val) => setSel({ type, val })
   async function bet() {
