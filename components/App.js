@@ -1,3 +1,4 @@
+'use client'
 
 export function GameHistory({ game }) {
   const [bets, setBets] = useState([])
@@ -117,7 +118,6 @@ export function GameHistory({ game }) {
   )
 }
 
-'use client'
 
 import Admin from './Admin'
 
