@@ -1,3 +1,122 @@
+
+export function GameHistory({ game }) {
+  const [bets, setBets] = useState([])
+  const [page, setPage] = useState(0)
+  const [loading, setLoading] = useState(false)
+  const u = user()
+
+  const loadBets = async () => {
+    if (!u) return
+    setLoading(true)
+    try {
+      if (u.id) {
+        const { data } = await supabase
+          .from('bets')
+          .select('*')
+          .eq('user_id', u.id)
+          .eq('game', game)
+          .order('created_at', { ascending: false })
+          .limit(100)
+        if (data && data.length) {
+          setBets(data)
+          return
+        }
+      }
+      const local = (u.bets || []).filter(b => b.g === game)
+      setBets(local.map((b, idx) => ({
+        id: 'local-' + idx + '-' + b.t,
+        amount: b.a,
+        win_amount: b.w,
+        created_at: new Date(b.t).toISOString()
+      })))
+    } catch (e) {
+      console.error('loadBets error:', e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    setPage(0)
+    loadBets()
+    const onNotif = () => setTimeout(loadBets, 600)
+    window.addEventListener('rs-notify', onNotif)
+    return () => window.removeEventListener('rs-notify', onNotif)
+  }, [game, u?.id])
+
+  const PAGE_SIZE = 10
+  const totalPages = Math.max(1, Math.ceil(bets.length / PAGE_SIZE))
+  const displayed = bets.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+
+  return (
+    <div className="card" style={{ marginTop: 14, background: 'var(--bg)', borderRadius: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <b>Bet History</b>
+        <button onClick={loadBets} style={{ padding: '3px 8px', fontSize: 11, background: 'var(--c2)' }}>Refresh</button>
+      </div>
+      <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ color: 'var(--mut)', borderBottom: '1px solid var(--ln)', textAlign: 'left' }}>
+            <th style={{ padding: '6px 4px' }}>Time</th>
+            <th style={{ padding: '6px 4px' }}>Bet</th>
+            <th style={{ padding: '6px 4px' }}>Result</th>
+            <th style={{ padding: '6px 4px', textAlign: 'right' }}>Payout</th>
+          </tr>
+        </thead>
+        <tbody>
+          {displayed.map((b, i) => {
+            const isWin = (b.win_amount || 0) > (b.amount || 0)
+            const net = (b.win_amount || 0) - (b.amount || 0)
+            const d = new Date(b.created_at || Date.now())
+            const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            return (
+              <tr key={b.id || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <td style={{ padding: '7px 4px', color: 'var(--mut)', fontSize: 11 }}>{timeStr}</td>
+                <td style={{ padding: '7px 4px' }}>₹{f(b.amount)}</td>
+                <td style={{ padding: '7px 4px', fontWeight: 600, color: isWin ? 'var(--ac)' : 'var(--bad)' }}>
+                  {isWin ? 'Win' : 'Loss'}
+                </td>
+                <td style={{ padding: '7px 4px', textAlign: 'right', fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)' }}>
+                  {isWin ? '+' : ''}₹{f(net)}
+                </td>
+              </tr>
+            )
+          })}
+          {!displayed.length && (
+            <tr>
+              <td colSpan="4" style={{ textAlign: 'center', padding: '16px 0', color: 'var(--mut)' }}>
+                {loading ? 'Loading history...' : 'No bets yet'}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 8, borderTop: '1px solid var(--ln)' }}>
+          <button 
+            disabled={page === 0} 
+            onClick={() => setPage(p => p - 1)}
+            style={{ padding: '4px 10px', fontSize: 12, borderRadius: 6 }}
+          >
+            ← Previous
+          </button>
+          <span style={{ fontSize: 12, color: 'var(--mut)' }}>
+            Page {page + 1} of {totalPages}
+          </span>
+          <button 
+            disabled={page >= totalPages - 1} 
+            onClick={() => setPage(p => p + 1)}
+            style={{ padding: '4px 10px', fontSize: 12, borderRadius: 6 }}
+          >
+            Next →
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 'use client'
 
 import Admin from './Admin'
@@ -680,11 +799,31 @@ function Main() {
 
         <div className="row" style={{ flex: 'none', gap: 10 }}>
 
-          <div style={{ display: 'inline-flex', alignItems: 'stretch', background: 'var(--bg)', borderRadius: 10, overflow: 'hidden' }}>
-            <span className="bal" style={{ cursor: 'pointer', background: 'transparent', padding: '6px 12px', display: 'flex', alignItems: 'center' }} onClick={() => go('wallet')}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', background: 'var(--c2)', border: '1px solid var(--ln)', borderRadius: 20, padding: '2px 3px 2px 10px', gap: 6, height: 34 }}>
+            <span style={{ cursor: 'pointer', fontWeight: 700, color: 'var(--ac)', fontSize: 13, whiteSpace: 'nowrap' }} onClick={() => go('wallet')}>
               {u.hide_balance ? '••••' : '₹' + f(u.balance)}
             </span>
-            <button className="p" style={{ padding: '0 11px', borderRadius: 0, border: 'none', fontSize: 17, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} onClick={() => go('wallet')}>
+            <button 
+              type="button"
+              onClick={() => go('wallet')}
+              style={{
+                width: 26,
+                height: 26,
+                borderRadius: '50%',
+                background: 'var(--ac)',
+                color: '#04200f',
+                border: 'none',
+                fontSize: 18,
+                fontWeight: 900,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                padding: 0,
+                lineHeight: 1,
+                flexShrink: 0
+              }}
+            >
               +
             </button>
           </div>
@@ -745,6 +884,7 @@ function Main() {
             </div>
 
             <div style={{ marginTop: 10 }}><Game key={game} amt={amt} /></div>
+            {game !== 'color' && <GameHistory game={game} />}
 
           </div></>}
 

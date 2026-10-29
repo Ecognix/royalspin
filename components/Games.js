@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { useDB, place, pay, toast, notify, f, user, supabase } from '../lib/supabase-db'
+import { useDB, place, pay, toast, notify, notifySubscribers, f, user, supabase } from '../lib/supabase-db'
 import { E, rnd, BETW, G, BLK, sched, cstate, PERIOD, LOCK, colorResult, colorResultCache, computeLowestBetResult, ballClass } from '../lib/fair'
 
 const FULL = { width: '100%' }
@@ -269,7 +269,23 @@ function draw(cv, s) {
 export function Crash({ amt }) {
   const cv = useRef(null), [s, setS] = useState(() => cstate())
   useEffect(() => {
-    const iv = setInterval(() => { const st = cstate(); setS(st); draw(cv.current, st) }, 100)
+    const iv = setInterval(() => {
+      const st = cstate()
+      setS(st)
+      draw(cv.current, st)
+      const curUser = user()
+      const myP = curUser?.cbet
+      if (st.st === 'crash' && myP && !myP.out && myP.i === st.i) {
+        myP.out = 1
+        pay('crash', myP.a, 0)
+        notify({ 
+          type: 'loss', 
+          title: 'Crash - Crashed', 
+          message: 'Lost ₹' + f(myP.a), 
+          details: 'Crashed at ' + f(st.m) + '×' 
+        })
+      }
+    }, 100)
     return () => clearInterval(iv)
   }, [])
   const u = user(), P = u.cbet
@@ -287,14 +303,31 @@ export function Crash({ amt }) {
   }
   async function cancelBet() {
     if (P && !P.out) {
-      u.balance += P.a; u.total_wagered -= P.a; u.total_bets = Math.max(0, u.total_bets - 1)
+      const refund = P.a
+      u.balance += refund
+      u.total_wagered = Math.max(0, (u.total_wagered || 0) - refund)
+      u.total_bets = Math.max(0, (u.total_bets || 0) - 1)
       u.cbet = null
-      await supabase.from('users').update({
-        balance: u.balance,
-        total_wagered: u.total_wagered,
-        total_bets: u.total_bets,
-      }).eq('phone', u.phone)
-      notify({ type: 'bet', title: 'Bet Cancelled', message: `₹${f(P.a)} returned to balance` })
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('rs-user', JSON.stringify(u))
+      }
+      notifySubscribers()
+      try {
+        const updateData = {
+          balance: u.balance,
+          total_wagered: u.total_wagered,
+          total_bets: u.total_bets,
+          updated_at: new Date().toISOString()
+        }
+        if (u.id) {
+          await supabase.from('users').update(updateData).eq('id', u.id)
+        } else {
+          await supabase.from('users').update(updateData).eq('phone', u.phone)
+        }
+      } catch (err) {
+        console.error('cancelBet error:', err)
+      }
+      notify({ type: 'bet', title: 'Bet Cancelled', message: `₹${f(refund)} returned to balance` })
     }
   }
   const mine = P && !P.out && P.i === s.i, q = P && !P.out && P.i > s.i, co = mine && s.st === 'fly', crashed = s.st === 'crash'

@@ -24,9 +24,9 @@ button.p{background:var(--ac);color:#04200f;border:0;font-weight:700}button.d{ba
 input,select{width:100%;background:var(--bg);border:1px solid var(--ln);border-radius:10px;padding:10px}
 input[type=range]{padding:0}input[type=checkbox]{width:auto}
 label{display:block;color:var(--mut);font-size:12px;margin:10px 0 4px}
-header{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--c1);position:sticky;top:env(safe-area-inset-top,0px);z-index:5;gap:8px}
+header{position:fixed;top:0;left:0;right:0;width:100%;z-index:100;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--c1);border-bottom:1px solid var(--ln);box-shadow:0 4px 16px rgba(0,0,0,0.4);gap:8px}
 .logo{font-weight:800;letter-spacing:.5px}.bal{background:var(--bg);padding:7px 11px;border-radius:10px;font-weight:700;color:var(--ac);white-space:nowrap}
-main{max-width:760px;margin:auto;padding:12px 14px 40px}main>*{animation:fin .35s ease both}
+main{max-width:760px;margin:auto;padding:70px 14px 40px}main>*{animation:fin .35s ease both}
 @keyframes fin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .card{background:var(--c1);border-radius:16px;padding:14px;margin-bottom:12px}
 .row{display:flex;gap:8px;align-items:center}.row>*{flex:1}
