@@ -421,37 +421,55 @@ export function Color({ amt }) {
 
   const mine = myBets.filter((b) => b.id === id)
 
-  // Fetch past period bets from Supabase so history reflects the lowest-bet logic
+  // Fetch past period results from canonical color_results table, then fall back to computing
   useEffect(() => {
+    let cancelled = false
     async function loadPastResults() {
       const pastPeriods = Array.from({ length: 15 }, (_, k) => id - 1 - k)
       const missing = pastPeriods.filter(p => colorResultCache[p] === undefined)
       if (missing.length === 0) return
 
       try {
-        const { data: bets } = await supabase
-          .from('color_bets')
-          .select('period_id, bet_type, bet_value, amount')
+        // 1. Read canonical settled results from color_results table
+        const { data: results } = await supabase
+          .from('color_results')
+          .select('period_id, winning_number')
           .in('period_id', missing)
 
-        const byPeriod = {}
-        bets?.forEach(b => {
-          if (!byPeriod[b.period_id]) byPeriod[b.period_id] = []
-          byPeriod[b.period_id].push(b)
-        })
+        const fromDB = {}
+        results?.forEach(r => { fromDB[r.period_id] = Number(r.winning_number) })
 
-        missing.forEach(p => {
-          colorResultCache[p] = computeLowestBetResult(p, byPeriod[p] || [])
-        })
+        // 2. For periods not yet in color_results, compute from color_bets
+        const stillMissing = missing.filter(p => fromDB[p] === undefined)
+        if (stillMissing.length > 0) {
+          const { data: bets } = await supabase
+            .from('color_bets')
+            .select('period_id, bet_type, bet_value, amount')
+            .in('period_id', stillMissing)
+
+          const byPeriod = {}
+          bets?.forEach(b => {
+            if (!byPeriod[b.period_id]) byPeriod[b.period_id] = []
+            byPeriod[b.period_id].push(b)
+          })
+
+          stillMissing.forEach(p => {
+            fromDB[p] = computeLowestBetResult(p, byPeriod[p] || [])
+          })
+        }
+
+        if (cancelled) return
+        Object.assign(colorResultCache, fromDB)
         setRndTick(t => t + 1)
       } catch (e) {
-        console.error('Failed to load past color bets:', e)
+        console.error('Failed to load past color results:', e)
       }
     }
     loadPastResults()
+    return () => { cancelled = true }
   }, [id])
 
-  const last = colorResult(id - 1)
+    const last = colorResult(id - 1)
   const totalPast = Array.from({ length: 100 }, (_, k) => id - 1 - k)
   const past = totalPast.slice(historyPage * 10, (historyPage + 1) * 10)
   const same = (a, b) => a && b && a.type === b.type && a.val === b.val

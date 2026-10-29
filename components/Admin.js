@@ -25,15 +25,29 @@ function ColorRoundsAdmin() {
   const currentPeriod = Math.floor(now / PERIOD)
   const left = Math.ceil(((currentPeriod + 1) * PERIOD - now) / 1000)
 
+  const [colorResults, setColorResults] = useState({})
+
   const fetchColorBets = async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('color_bets')
-        .select('*, users(phone, username)')
-        .order('created_at', { ascending: false })
-        .limit(2000)
+      const [{ data }, { data: resultRows }] = await Promise.all([
+        supabase
+          .from('color_bets')
+          .select('*, users(phone, username)')
+          .order('created_at', { ascending: false })
+          .limit(2000),
+        supabase
+          .from('color_results')
+          .select('period_id, winning_number')
+          .order('period_id', { ascending: false })
+          .limit(500)
+      ])
       if (data) setColorBets(data)
+      if (resultRows) {
+        const map = {}
+        resultRows.forEach(r => { map[r.period_id] = Number(r.winning_number) })
+        setColorResults(map)
+      }
     } catch (e) {
       console.error('fetchColorBets error:', e)
     } finally {
@@ -136,7 +150,7 @@ function ColorRoundsAdmin() {
           <tbody>
             {displayed.map((p) => {
               const isLive = p.period_id === currentPeriod
-              const n = isLive ? null : colorResult(p.period_id)
+              const n = isLive ? null : (colorResults[p.period_id] ?? colorResult(p.period_id))
               const housePnl = p.totalBet - p.totalWin
               const isExpanded = expandedPeriod === p.period_id
               const opt = p.options
@@ -168,12 +182,14 @@ function ColorRoundsAdmin() {
                     <td style={{ padding: '9px 6px' }}>
                       {isLive ? (
                         <span style={{ color: '#ffd54f', fontSize: 12, fontWeight: 700 }}>In progress ({left}s)</span>
-                      ) : (
+                      ) : n !== null && n !== undefined ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span className={'ball sm ' + ballClass(n)}>{n}</span>
                           <span style={{ color: sizeCol(n), fontWeight: 700, fontSize: 12 }}>{sizeOf(n)}</span>
                           <span style={{ fontSize: 11, color: 'var(--mut)' }}>{cname(n)}</span>
                         </div>
+                      ) : (
+                        <span style={{ color: 'var(--mut)', fontSize: 12 }}>Pending...</span>
                       )}
                     </td>
                     <td style={{ padding: '9px 6px', fontWeight: 700, color: housePnl > 0 ? 'var(--ac)' : housePnl < 0 ? 'var(--bad)' : 'inherit' }}>
