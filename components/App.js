@@ -704,7 +704,7 @@ function Main() {
 
       </header>
 
-      <main key={view + game}>
+      <main>
 
         {view === 'home' && <>
 
@@ -747,7 +747,7 @@ function Main() {
               </button>
             </div>
 
-            <div style={{ marginTop: 10 }}><Game amt={amt} /></div>
+            <div style={{ marginTop: 10 }}><Game key={game} amt={amt} /></div>
 
           </div></>}
 

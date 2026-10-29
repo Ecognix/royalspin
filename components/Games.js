@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useEffect, useRef, useState } from 'react'
 import { useDB, place, pay, toast, notify, f, user, supabase } from '../lib/supabase-db'
 import { E, rnd, BETW, G, BLK, sched, cstate, PERIOD, LOCK, colorResult, colorResultCache, computeLowestBetResult, ballClass } from '../lib/fair'
@@ -8,7 +8,6 @@ const comb = (n, k) => { if (k < 0 || k > n) return 0; let r = 1; for (let i = 1
 
 // ------------------------------------------------------------------ Dice
 export function Dice({ amt }) {
-  useDB()
   const [over, setOver] = useState(true), [t, setT] = useState(50)
   const [res, setRes] = useState(null), [spin, setSpin] = useState(null), [busy, setBusy] = useState(false)
   const [lastResult, setLastResult] = useState(null)
@@ -28,22 +27,22 @@ export function Dice({ amt }) {
         pay('dice', a, win)
         setLastResult({ w, win, a, x })
         if (w) {
-          notify({ type: 'win', title: `Dice - ${over ? 'Over' : 'Under'} ${t}`, message: `Win ₹${f(win)}`, details: `Rolled ${f(x)} · Chance ${ch}% · Payout ${f(mult)}×` })
+          notify({ type: 'win', title: `Dice - ${over ? 'Over' : 'Under'} ${t}`, message: `Win â‚¹${f(win)}`, details: `Rolled ${f(x)} Â· Chance ${ch}% Â· Payout ${f(mult)}Ã—` })
         } else {
-          notify({ type: 'loss', title: `Dice - ${over ? 'Over' : 'Under'} ${t}`, message: `Lost ₹${f(a)}`, details: `Rolled ${f(x)} · Chance ${ch}%` })
+          notify({ type: 'loss', title: `Dice - ${over ? 'Over' : 'Under'} ${t}`, message: `Lost â‚¹${f(a)}`, details: `Rolled ${f(x)} Â· Chance ${ch}%` })
         }
         setBusy(false)
       }
     }, 70)
   }
-  const shown = spin != null ? f(spin) : res ? f(res.x) : '—'
+  const shown = spin != null ? f(spin) : res ? f(res.x) : 'â€”'
   const color = spin != null || !res ? undefined : res.w ? 'var(--ac)' : 'var(--bad)'
   return (
     <>
       <div className="big" style={{ color }}>{shown}</div>
       {lastResult && (
         <div style={{ textAlign: 'center', padding: '8px 0', fontWeight: 700, fontSize: 18, color: lastResult.w ? 'var(--ac)' : 'var(--bad)' }}>
-          {lastResult.w ? `✓ WIN  +₹${f(lastResult.win - lastResult.a)}` : `✗ LOSS  -₹${f(lastResult.a)}`}
+          {lastResult.w ? `âœ“ WIN  +â‚¹${f(lastResult.win - lastResult.a)}` : `âœ— LOSS  -â‚¹${f(lastResult.a)}`}
         </div>
       )}
       <div className="dbar" style={{ background: `linear-gradient(90deg,${over ? '#ff5a5a' : '#2ee67a'} ${t}%,${over ? '#2ee67a' : '#ff5a5a'} ${t}%)` }}>
@@ -54,7 +53,7 @@ export function Dice({ amt }) {
         <button className={!over ? 'on' : ''} onClick={() => setOver(false)}>Roll under</button>
       </div>
       <input type="range" min="2" max="98" value={t} onChange={(e) => setT(+e.target.value)} />
-      <p className="small">{over ? 'Over' : 'Under'} {t} · chance {ch}% · pays {f(mult)}×</p>
+      <p className="small">{over ? 'Over' : 'Under'} {t} Â· chance {ch}% Â· pays {f(mult)}Ã—</p>
       <button className="p" style={{ ...FULL, opacity: busy ? 0.7 : 1 }} onClick={roll} disabled={busy}>
         {busy ? 'Rolling...' : 'Roll'}
       </button>
@@ -64,7 +63,6 @@ export function Dice({ amt }) {
 
 // ------------------------------------------------------------------ Limbo
 export function Limbo({ amt }) {
-  useDB()
   const [tg, setTg] = useState(2), [v, setV] = useState(null), [col, setCol] = useState(undefined), [busy, setBusy] = useState(false)
   const [lastResult, setLastResult] = useState(null)
 
@@ -83,9 +81,9 @@ export function Limbo({ amt }) {
         pay('limbo', a, win)
         setLastResult({ w, win, a })
         if (w) {
-          notify({ type: 'win', title: `Limbo - Target ${f(t)}×`, message: `Win ₹${f(win)}`, details: `Result ${f(r)}× · Target ${f(t)}× · Payout ${f(t)}×` })
+          notify({ type: 'win', title: `Limbo - Target ${f(t)}Ã—`, message: `Win â‚¹${f(win)}`, details: `Result ${f(r)}Ã— Â· Target ${f(t)}Ã— Â· Payout ${f(t)}Ã—` })
         } else {
-          notify({ type: 'loss', title: `Limbo - Target ${f(t)}×`, message: `Lost ₹${f(a)}`, details: `Result ${f(r)}× · Target ${f(t)}×` })
+          notify({ type: 'loss', title: `Limbo - Target ${f(t)}Ã—`, message: `Lost â‚¹${f(a)}`, details: `Result ${f(r)}Ã— Â· Target ${f(t)}Ã—` })
         }
         setBusy(false)
       }
@@ -93,10 +91,10 @@ export function Limbo({ amt }) {
   }
   return (
     <>
-      <div className="big" style={{ color: col }}>{v == null ? '—' : f(v) + '×'}</div>
+      <div className="big" style={{ color: col }}>{v == null ? 'â€”' : f(v) + 'Ã—'}</div>
       {lastResult && (
         <div style={{ textAlign: 'center', padding: '8px 0', fontWeight: 700, fontSize: 18, color: lastResult.w ? 'var(--ac)' : 'var(--bad)' }}>
-          {lastResult.w ? `✓ WIN  +₹${f(lastResult.win - lastResult.a)}` : `✗ LOSS  -₹${f(lastResult.a)}`}
+          {lastResult.w ? `âœ“ WIN  +â‚¹${f(lastResult.win - lastResult.a)}` : `âœ— LOSS  -â‚¹${f(lastResult.a)}`}
         </div>
       )}
       <label>Target multiplier</label>
@@ -111,7 +109,6 @@ export function Limbo({ amt }) {
 // ------------------------------------------------------------------ Mines
 const mmul = (m) => { let x = 1; for (let i = 0; i < m.f; i++) x *= (25 - i) / (25 - m.n - i); return x * E('mines') }
 export function Mines({ amt }) {
-  useDB()
   const [n, setN] = useState(3), [M, setM] = useState(null), [shake, setShake] = useState(false)
   const ref = useRef(null); ref.current = M
   // leaving mid-round cashes out gems, or refunds the stake if none were found
@@ -121,23 +118,23 @@ export function Mines({ amt }) {
     const a = place('mines', amt); if (!a) return
     const s = new Set(); while (s.size < n) s.add(Math.floor(rnd() * 25))
     setM({ on: true, n, s, a, f: 0, rev: {} })
-    notify({ type: 'bet', title: 'Mines Round Started', message: `Bet ₹${f(a)} · ${n} mines` })
+    notify({ type: 'bet', title: 'Mines Round Started', message: `Bet â‚¹${f(a)} Â· ${n} mines` })
   }
   function pick(i) {
     if (!M || !M.on || M.rev[i]) return
     if (M.s.has(i)) {
       pay('mines', M.a, 0); setM({ ...M, on: false, rev: { ...M.rev, [i]: 'mine' } })
       setShake(true); setTimeout(() => setShake(false), 500)
-      notify({ type: 'loss', title: 'Mines - Hit Mine', message: `Lost ₹${f(M.a)}`, details: `Found ${M.f} gems · Multiplier ${f(mmul(M))}×` })
+      notify({ type: 'loss', title: 'Mines - Hit Mine', message: `Lost â‚¹${f(M.a)}`, details: `Found ${M.f} gems Â· Multiplier ${f(mmul(M))}Ã—` })
     } else {
       const m2 = { ...M, f: M.f + 1, rev: { ...M.rev, [i]: 'gem' } }
-      if (m2.f === 25 - M.n) { const w = M.a * mmul(m2); pay('mines', M.a, w); notify({ type: 'win', title: 'Mines - Cleared Board!', message: `Win ₹${f(w)}`, details: `Found all ${25 - M.n} gems · Multiplier ${f(mmul(m2))}×` }); setM({ ...m2, on: false }) }
+      if (m2.f === 25 - M.n) { const w = M.a * mmul(m2); pay('mines', M.a, w); notify({ type: 'win', title: 'Mines - Cleared Board!', message: `Win â‚¹${f(w)}`, details: `Found all ${25 - M.n} gems Â· Multiplier ${f(mmul(m2))}Ã—` }); setM({ ...m2, on: false }) }
       else setM(m2)
     }
   }
   function cash() {
     if (!M || !M.on || !M.f) return
-    const w = M.a * mmul(M); pay('mines', M.a, w); notify({ type: 'win', title: 'Mines - Cashed Out', message: `Win ₹${f(w)}`, details: `Found ${M.f} gems · Multiplier ${f(mmul(M))}×` }); setM({ ...M, on: false })
+    const w = M.a * mmul(M); pay('mines', M.a, w); notify({ type: 'win', title: 'Mines - Cashed Out', message: `Win â‚¹${f(w)}`, details: `Found ${M.f} gems Â· Multiplier ${f(mmul(M))}Ã—` }); setM({ ...M, on: false })
   }
   const on = M && M.on
   return (
@@ -152,15 +149,15 @@ export function Mines({ amt }) {
           return (
             <button key={i} className={'t' + (r === 'gem' ? ' gem' : r === 'mine' || showMine ? ' mine' : '')}
               disabled={!on || !!r} onClick={() => pick(i)}>
-              {r === 'gem' ? '💎' : r === 'mine' || showMine ? '💣' : ''}
+              {r === 'gem' ? 'ðŸ’Ž' : r === 'mine' || showMine ? 'ðŸ’£' : ''}
             </button>
           )
         })}
       </div>
       <p className="small">
         {!M && 'Start a round'}
-        {on && (M.f ? <b style={{ color: 'var(--ac)' }}>{M.f} gems · {f(mmul(M))}× · cash out ₹{f(M.a * mmul(M))}</b>
-          : <><span className="live" style={{ background: 'var(--ac)' }} />Round started · bet ₹{f(M.a)} · {M.n} mines. Pick a tile</>)}
+        {on && (M.f ? <b style={{ color: 'var(--ac)' }}>{M.f} gems Â· {f(mmul(M))}Ã— Â· cash out â‚¹{f(M.a * mmul(M))}</b>
+          : <><span className="live" style={{ background: 'var(--ac)' }} />Round started Â· bet â‚¹{f(M.a)} Â· {M.n} mines. Pick a tile</>)}
         {M && !on && 'Round over'}
       </p>
       <div className="row">
@@ -173,7 +170,6 @@ export function Mines({ amt }) {
 
 // ------------------------------------------------------------------ Keno
 export function Keno({ amt }) {
-  useDB()
   const [K, setK] = useState([]), [drawn, setDrawn] = useState([]), [busy, setBusy] = useState(false)
   const [lastResult, setLastResult] = useState(null)
 
@@ -191,9 +187,9 @@ export function Keno({ amt }) {
       pay('keno', a, a * m)
       setLastResult({ win: m > 0, net: a * m - a, h, p })
       if (m > 0) {
-        notify({ type: 'win', title: `Keno - ${h} Hits`, message: `Win ₹${f(a * m)}`, details: `${h}/${p} numbers matched · Payout ${f(m)}×` })
+        notify({ type: 'win', title: `Keno - ${h} Hits`, message: `Win â‚¹${f(a * m)}`, details: `${h}/${p} numbers matched Â· Payout ${f(m)}Ã—` })
       } else {
-        notify({ type: 'loss', title: `Keno - ${h} Hits`, message: `Lost ₹${f(a)}`, details: `${h}/${p} numbers matched` })
+        notify({ type: 'loss', title: `Keno - ${h} Hits`, message: `Lost â‚¹${f(a)}`, details: `${h}/${p} numbers matched` })
       }
       setBusy(false)
     }, 1750)
@@ -210,7 +206,7 @@ export function Keno({ amt }) {
       </div>
       {lastResult && (
         <div style={{ textAlign: 'center', padding: '8px 0', fontWeight: 700, fontSize: 16, color: lastResult.win ? 'var(--ac)' : 'var(--bad)' }}>
-          {lastResult.win ? `✓ WIN  +₹${f(lastResult.net)}  (${lastResult.h}/${lastResult.p} hits)` : `✗ LOSS  (${lastResult.h}/${lastResult.p} hits)`}
+          {lastResult.win ? `âœ“ WIN  +â‚¹${f(lastResult.net)}  (${lastResult.h}/${lastResult.p} hits)` : `âœ— LOSS  (${lastResult.h}/${lastResult.p} hits)`}
         </div>
       )}
       <div className="row">
@@ -223,7 +219,6 @@ export function Keno({ amt }) {
 
 // ------------------------------------------------------------------ Coin flip
 export function Flip({ amt }) {
-  useDB()
   const [side, setSide] = useState('Heads'), [rot, setRot] = useState(0), [busy, setBusy] = useState(false)
   const [lastResult, setLastResult] = useState(null)
   const scene = useRef(null)
@@ -239,9 +234,9 @@ export function Flip({ amt }) {
       pay('flip', a, w ? win : 0)
       setLastResult({ w, win, a, r })
       if (w) {
-        notify({ type: 'win', title: `Coin Flip - ${side}`, message: `Win ₹${f(win)}`, details: `Result: ${r} · Payout ${f(2 * E('flip'))}×` })
+        notify({ type: 'win', title: `Coin Flip - ${side}`, message: `Win â‚¹${f(win)}`, details: `Result: ${r} Â· Payout ${f(2 * E('flip'))}Ã—` })
       } else {
-        notify({ type: 'loss', title: `Coin Flip - ${side}`, message: `Lost ₹${f(a)}`, details: `Result: ${r}` })
+        notify({ type: 'loss', title: `Coin Flip - ${side}`, message: `Lost â‚¹${f(a)}`, details: `Result: ${r}` })
       }
       setBusy(false)
     }, 1450)
@@ -258,10 +253,10 @@ export function Flip({ amt }) {
       </div>
       {lastResult && (
         <div style={{ textAlign: 'center', padding: '8px 0', fontWeight: 700, fontSize: 18, color: lastResult.w ? 'var(--ac)' : 'var(--bad)' }}>
-          {lastResult.r} — {lastResult.w ? `✓ WIN  +₹${f(lastResult.win - lastResult.a)}` : `✗ LOSS  -₹${f(lastResult.a)}`}
+          {lastResult.r} â€” {lastResult.w ? `âœ“ WIN  +â‚¹${f(lastResult.win - lastResult.a)}` : `âœ— LOSS  -â‚¹${f(lastResult.a)}`}
         </div>
       )}
-      <p className="small">Pays {f(2 * E('flip'))}×</p>
+      <p className="small">Pays {f(2 * E('flip'))}Ã—</p>
       <button className="p" style={{ ...FULL, opacity: busy ? 0.7 : 1 }} onClick={flip} disabled={busy}>
         {busy ? 'Flipping...' : 'Flip'}
       </button>
@@ -288,7 +283,6 @@ function draw(cv, s) {
 }
 
 export function Crash({ amt }) {
-  useDB()
   const cv = useRef(null), [s, setS] = useState(() => cstate())
   useEffect(() => {
     const iv = setInterval(() => { const st = cstate(); setS(st); draw(cv.current, st) }, 100)
@@ -299,13 +293,13 @@ export function Crash({ amt }) {
     const st = cstate()
     if (P && !P.out && P.i === st.i && st.st === 'fly') {
       P.out = 1; const w = P.a * st.m; pay('crash', P.a, w)
-      notify({ type: 'win', title: `Crash - Cashed Out`, message: `Win ₹${f(w)}`, details: `Cashed out at ${f(st.m)}×` })
+      notify({ type: 'win', title: `Crash - Cashed Out`, message: `Win â‚¹${f(w)}`, details: `Cashed out at ${f(st.m)}Ã—` })
       return
     }
     if (P && !P.out && P.i >= st.i) return toast('Bet already placed')
     const a = place('crash', amt); if (!a) return
     u.cbet = { i: st.st === 'bet' ? st.i : st.ni, a, out: 0 }
-    notify({ type: 'bet', title: 'Bet Placed', message: st.st === 'bet' ? `Bet ₹${f(amt)} placed` : `Bet ₹${f(amt)} queued for next round` })
+    notify({ type: 'bet', title: 'Bet Placed', message: st.st === 'bet' ? `Bet â‚¹${f(amt)} placed` : `Bet â‚¹${f(amt)} queued for next round` })
   }
   async function cancelBet() {
     if (P && !P.out) {
@@ -316,20 +310,20 @@ export function Crash({ amt }) {
         total_wagered: u.total_wagered,
         total_bets: u.total_bets,
       }).eq('phone', u.phone)
-      notify({ type: 'bet', title: 'Bet Cancelled', message: `₹${f(P.a)} returned to balance` })
+      notify({ type: 'bet', title: 'Bet Cancelled', message: `â‚¹${f(P.a)} returned to balance` })
     }
   }
   const mine = P && !P.out && P.i === s.i, q = P && !P.out && P.i > s.i, co = mine && s.st === 'fly', crashed = s.st === 'crash'
   const canCancel = (mine || q) && s.st === 'bet' && !co
-  const label = mine ? (co ? `Cash out ₹${f(P.a * s.m)}` : s.st === 'bet' ? 'Bet placed ✓' : 'Settling') : q ? 'Queued for next round ✓' : s.st === 'bet' ? `Bet ₹${f(amt)}` : `Bet next round ₹${f(amt)}`
+  const label = mine ? (co ? `Cash out â‚¹${f(P.a * s.m)}` : s.st === 'bet' ? 'Bet placed âœ“' : 'Settling') : q ? 'Queued for next round âœ“' : s.st === 'bet' ? `Bet â‚¹${f(amt)}` : `Bet next round â‚¹${f(amt)}`
   const bk = Math.floor(Date.now() / BLK)
   const hist = sched(bk - 1).concat(sched(bk)).filter((r) => r.id < s.i).slice(-12).reverse()
   return (
     <>
-      <div className="hist">{hist.map((r) => <b key={r.id} style={{ color: r.cp < 2 ? 'var(--bad)' : 'var(--ac)' }}>{f(r.cp)}×</b>)}</div>
+      <div className="hist">{hist.map((r) => <b key={r.id} style={{ color: r.cp < 2 ? 'var(--bad)' : 'var(--ac)' }}>{f(r.cp)}Ã—</b>)}</div>
       <div className="row" style={{ margin: '6px 0' }}>
         <span className="small"><span className="live" style={{ background: crashed ? undefined : 'var(--ac)' }} />
-          {s.st === 'bet' ? 'Betting open' : crashed ? `Crashed · next round in ${s.nx}s` : 'Round live'}</span>
+          {s.st === 'bet' ? 'Betting open' : crashed ? `Crashed Â· next round in ${s.nx}s` : 'Round live'}</span>
       </div>
       <div className="bar" style={{ marginBottom: 8 }}>
         <i style={{ width: s.st === 'bet' ? 100 - s.p * 100 + '%' : crashed ? 100 - s.np * 100 + '%' : '100%', background: crashed ? 'var(--bad)' : 'var(--ac)' }} />
@@ -339,7 +333,7 @@ export function Crash({ amt }) {
         <div className="big" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', fontSize: 56, pointerEvents: 'none' }}>
           {s.st === 'bet'
             ? <><div style={{ fontSize: 72 }}>{s.left}</div><div className="small">Betting open. Place your bet</div></>
-            : <><div style={{ color: crashed ? 'var(--bad)' : s.m >= 10 ? '#ffd54f' : 'var(--ac)' }}>{f(s.m)}×</div><div className="small">{crashed ? `Crashed. Next round in ${s.nx}s` : 'Flying'}</div></>}
+            : <><div style={{ color: crashed ? 'var(--bad)' : s.m >= 10 ? '#ffd54f' : 'var(--ac)' }}>{f(s.m)}Ã—</div><div className="small">{crashed ? `Crashed. Next round in ${s.nx}s` : 'Flying'}</div></>}
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
@@ -352,13 +346,12 @@ export function Crash({ amt }) {
 }
 
 // ------------------------------------------------------------------ Color trading
-const PAY = { green: '1.96×', violet: '4.4×', red: '1.96×' }
+const PAY = { green: '1.96Ã—', violet: '4.4Ã—', red: '1.96Ã—' }
 const BTN = { green: '#2e9e5b', violet: '#8e44ad', red: '#e53935' }
 const sizeOf = (n) => (n >= 5 ? 'Big' : 'Small')
 const sizeCol = (n) => (n >= 5 ? '#f59e0b' : '#3b82f6')
 const cname = (n) => (n === 0 ? 'Red + Violet' : n === 5 ? 'Green + Violet' : n % 2 ? 'Green' : 'Red')
 export function Color({ amt }) {
-  useDB()
   const [now, setNow] = useState(() => Date.now()), [sel, setSel] = useState(null)
   const [myBets, setMyBets] = useState([])
   const [, setRndTick] = useState(0)
@@ -475,7 +468,7 @@ export function Color({ amt }) {
       console.error('Failed to insert color_bet:', err)
     }
 
-    toast('✓ Bet placed: ₹' + f(a) + ' on ' + placedOption)
+    toast('âœ“ Bet placed: â‚¹' + f(a) + ' on ' + placedOption)
   }
   const name = (b) => { if (!b) return ''; if (b.type === 'num') return 'Number ' + b.val; const s = String(b.val || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
   return (
@@ -503,15 +496,15 @@ export function Color({ amt }) {
         <div className="row">
           {['big', 'small'].map((z) => (
             <button key={z} className={'cbtn sm' + (same(sel, { type: 'size', val: z }) ? ' sel' : '')} style={{ background: z === 'big' ? '#f59e0b' : '#3b82f6' }} onClick={() => pick('size', z)}>
-              {z === 'big' ? 'Big (5-9)' : 'Small (0-4)'}<div className="small" style={{ color: '#fffc' }}>1.96×</div>
+              {z === 'big' ? 'Big (5-9)' : 'Small (0-4)'}<div className="small" style={{ color: '#fffc' }}>1.96Ã—</div>
             </button>
           ))}
         </div>
       </div>
-      <p className="small">Number pays 8.8×. If 0 or 5 lands, it counts as red or green at 1.47× and also as violet. Results are determined by the lowest cumulative bet pool in each round across all players.</p>
-      <button className="p" style={FULL} onClick={bet} disabled={locked}>{sel ? `Bet ₹${f(amt)} on ${name(sel)}` : 'Choose an option'}</button>
+      <p className="small">Number pays 8.8Ã—. If 0 or 5 lands, it counts as red or green at 1.47Ã— and also as violet. Results are determined by the lowest cumulative bet pool in each round across all players.</p>
+      <button className="p" style={FULL} onClick={bet} disabled={locked}>{sel ? `Bet â‚¹${f(amt)} on ${name(sel)}` : 'Choose an option'}</button>
       {mine.length > 0 && <div className="card" style={{ marginTop: 12, marginBottom: 0, background: 'var(--bg)' }}><b>Your bets this period</b>
-        <table><tbody>{mine.map((b, i) => <tr key={i}><td>{name(b)}</td><td>₹{f(b.amt)}</td></tr>)}</tbody></table></div>}
+        <table><tbody>{mine.map((b, i) => <tr key={i}><td>{name(b)}</td><td>â‚¹{f(b.amt)}</td></tr>)}</tbody></table></div>}
 
       <div className="card" style={{ marginTop: 12, marginBottom: 0, background: 'var(--bg)' }}>
         <b>History</b>
