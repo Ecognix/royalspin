@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useState, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { createClient } from '@supabase/supabase-js'
@@ -58,7 +58,7 @@ export function Wallet({ u, me }) {
     setTransactions(txs || [])
   }
 
-  const link = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=RoyalSpinDemo&am=${dq}&cu=INR`
+  const link = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=RoyalSpin&am=${dq}&cu=INR`
 
   async function dsub() {
     if (!/^\d{12}$/.test(utr.trim())) return toast('UTR must be 12 digits')
@@ -83,14 +83,13 @@ export function Wallet({ u, me }) {
   return (
     <>
       <div className="card"><b>Wallet</b><div className="big">₹{f(u.balance)}</div>
-        <p className="small">Demo money. No real payments happen here.</p>
         <div className="row"><button className="p" onClick={() => setTab('d')}>Deposit</button><button onClick={() => setTab('w')}>Withdraw</button></div></div>
       {tab === 'd' ? (
-        <div className="card"><b>UPI deposit (demo)</b>
+        <div className="card"><b>UPI Deposit</b>
           <label>Amount</label><input type="number" value={dq} onChange={(e) => setDq(e.target.value)} />
           <div style={{ textAlign: 'center', margin: '12px 0' }}>
             <div className="qr"><QRCodeSVG value={link} size={170} /></div>
-            <p className="small">Pay to {upiId} · amount fills on scan</p></div>
+            <p className="small">Scan QR to pay</p></div>
           <label>12 digit UTR number</label><input inputMode="numeric" maxLength={12} value={utr} onChange={(e) => setUtr(e.target.value)} />
           <button className="p" style={{ width: '100%', marginTop: 10 }} onClick={dsub}>Submit UTR</button></div>
       ) : (

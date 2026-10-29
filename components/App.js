@@ -552,7 +552,7 @@ function Auth({ onIn }) {
 
       <div className="logo" style={{ fontSize: 22 }}>♠ Royal Spin</div>
 
-      <p className="small">Play-money demo. Coins have no cash value.</p>
+      <p className="small">Enter your credentials to continue.</p>
 
       <div className="row">
 
