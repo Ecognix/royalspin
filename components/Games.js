@@ -67,7 +67,7 @@ export function Limbo({ amt }) {
     if (busy) return
     const a = place('limbo', amt); if (!a) return
     setBusy(true); setCol(undefined); setLastResult(null)
-    const t = Math.max(1.01, +tg), r = Math.max(1, Math.floor((100 * E('limbo')) / (rnd() || 1e-9)) / 100), w = r >= t
+    const t = Math.min(300, Math.max(1.01, +tg)), r = Math.max(1, Math.floor((100 * E('limbo')) / (rnd() || 1e-9)) / 100), w = r >= t
     const t0 = performance.now(), dur = Math.min(1600, 500 + Math.log10(r) * 600)
     const iv = setInterval(() => {
       const p = Math.min(1, (performance.now() - t0) / dur)
@@ -91,8 +91,8 @@ export function Limbo({ amt }) {
       <div className="big" style={{ color: col }}>{v == null ? '—' : f(v) + '×'}</div>
       
       <label>Target multiplier</label>
-      <input type="number" step="0.01" min="1.01" value={tg} onChange={(e) => setTg(e.target.value)} />
-      <p className="small" style={{ color: 'var(--mut)', marginTop: 6 }}>Set any target multiplier from 1.01× up to 1000×. If the rolled number meets or beats your target, you win your bet multiplied by that exact rate.</p>
+      <input type="number" step="0.01" min="1.01" max="300" value={tg} onChange={(e) => setTg(Math.min(300, +e.target.value))} />
+      <p className="small" style={{ color: 'var(--mut)', marginTop: 6 }}>Set any target multiplier from 1.01× up to 300×. If the rolled number meets or beats your target, you win your bet multiplied by that exact rate.</p>
       <button className="p" style={{ ...FULL, marginTop: 12, opacity: busy ? 0.7 : 1 }} onClick={play} disabled={busy}>
         {busy ? 'Playing...' : 'Play'}
       </button>
@@ -178,7 +178,7 @@ export function Keno({ amt }) {
     const edge = E('keno')
     const scaling = Math.pow(minH / Math.max(1, p), 0.85)
     const mult = (edge * 0.82 / prob) * scaling
-    return Math.max(1.15, mult)
+    return Math.min(300, Math.max(1.15, mult))
   }
 
   function play() {
@@ -278,7 +278,7 @@ export function Keno({ amt }) {
         </div>
       </div>
 
-      <p className="small" style={{ color: 'var(--mut)', margin: '4px 0 10px' }}>Select numbers and hit target. Multipliers scale dynamically based on your chosen numbers and target hits.</p>
+      <p className="small" style={{ color: 'var(--mut)', margin: '4px 0 10px' }}>Select numbers and hit target. Multipliers scale dynamically based on your chosen numbers and target hits (max 300×).</p>
       
       <div className="row">
         <button className="p" onClick={play} disabled={busy}>{busy ? 'Drawing...' : 'Draw'}</button>
