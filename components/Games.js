@@ -198,7 +198,7 @@ export function Keno({ amt }) {
       pay('keno', a, winAmt)
       setLastResult({ win: m > 0, net: winAmt - a, h, p })
       if (m > 0) {
-        notify({ type: 'win', title: `Keno - ${h} Hits`, message: `Win ₹${f(winAmt)}`, details: `${h}/${p} numbers matched (Min ${effectiveMinHits} req) · Payout ${f(m)}×` })
+        notify({ type: 'win', title: `Keno - ${h} Hits`, message: `Win ₹${f(winAmt)}`, details: `${h}/${p} numbers matched (${effectiveMinHits}+ hits tier) · Payout ${f(m)}×` })
       } else {
         notify({ type: 'loss', title: `Keno - ${h} Hits`, message: `Lost ₹${f(a)}`, details: `${h}/${p} numbers matched (Needed ${effectiveMinHits}+ hits to win)` })
       }
@@ -209,18 +209,13 @@ export function Keno({ amt }) {
   const pCount = K.length
   const maxPossibleHits = Math.max(2, pCount)
   const currentMin = Math.min(targetHits, maxPossibleHits)
-  const minPossiblePayout = pCount >= 2 ? getKenoMult(currentMin, pCount, currentMin) : 1.5
-  const maxPossiblePayout = pCount >= 2 ? getKenoMult(pCount, pCount, currentMin) : 100
+  const exactSelectedMult = pCount >= 2 ? getKenoMult(currentMin, pCount, currentMin) : 0
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <p className="small">Pick 1 to 10 numbers ({K.length}/10)</p>
-        {pCount >= 2 && (
-          <span className="small" style={{ color: 'var(--ac)', fontWeight: 700 }}>
-            Pays ~{f(minPossiblePayout)}× to ~{f(maxPossiblePayout)}×
-          </span>
-        )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <p className="small" style={{ margin: 0 }}>Pick 1 to 10 numbers ({K.length}/10)</p>
+        <span className="small" style={{ color: 'var(--mut)' }}>10 winning numbers drawn</span>
       </div>
 
       <div className="grid" style={{ gridTemplateColumns: 'repeat(8,1fr)' }}>
@@ -231,29 +226,59 @@ export function Keno({ amt }) {
         })}
       </div>
 
-      {/* Selectable Winning Hits Option starting from 2 */}
+      {/* Dropdown with Exact Multiplier shown right next to it */}
       <div style={{ marginTop: 12, marginBottom: 8, background: 'rgba(255,255,255,0.03)', padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-          <span className="small" style={{ fontWeight: 600 }}>Min blocks/hits to win: <b style={{ color: 'var(--ac)' }}>{currentMin} hits</b></span>
-          <span className="small" style={{ color: 'var(--mut)' }}>Fewer hits = lower mult · More hits = huge mult</span>
+        <div style={{ fontSize: 11, color: 'var(--mut)', marginBottom: 6, fontWeight: 600 }}>
+          Choose hits to win ({pCount ? `${pCount} numbers selected` : 'Pick numbers on board'}):
         </div>
-        <div className="chips" style={{ margin: 0, gap: 6, display: 'flex', flexWrap: 'wrap' }}>
-          {Array.from({ length: Math.min(9, Math.max(3, maxPossibleHits - 1)) }, (_, i) => i + 2).map((hits) => (
-            <button
-              key={hits}
-              type="button"
-              disabled={busy || (pCount >= 2 && hits > pCount)}
-              className={currentMin === hits ? 'on' : ''}
-              onClick={() => setTargetHits(hits)}
-              style={{ padding: '4px 10px', fontSize: 12, minWidth: 32 }}
-            >
-              {hits}
-            </button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <select 
+            value={currentMin} 
+            disabled={busy || pCount < 2}
+            onChange={(e) => setTargetHits(Number(e.target.value))}
+            style={{ 
+              flex: 1, 
+              padding: '9px 12px', 
+              borderRadius: 8, 
+              background: 'var(--c2)', 
+              border: '1px solid var(--ln)', 
+              color: '#fff', 
+              fontSize: 13,
+              cursor: pCount < 2 ? 'not-allowed' : 'pointer',
+              outline: 'none'
+            }}
+          >
+            {pCount >= 2 ? (
+              Array.from({ length: pCount - 1 }, (_, i) => i + 2).map((hits) => (
+                <option key={hits} value={hits}>
+                  {hits} Matching Hits
+                </option>
+              ))
+            ) : (
+              <option value={2}>Pick at least 2 numbers</option>
+            )}
+          </select>
+
+          <div style={{ 
+            background: 'var(--c2)', 
+            border: '1px solid var(--ln)', 
+            borderRadius: 8, 
+            padding: '6px 14px', 
+            textAlign: 'center',
+            minWidth: 105,
+            flexShrink: 0
+          }}>
+            <div style={{ fontSize: 9, color: 'var(--mut)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700 }}>
+              Multiplier
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: pCount >= 2 ? 'var(--ac)' : 'var(--mut)', lineHeight: 1.2, marginTop: 1 }}>
+              {pCount >= 2 ? f(exactSelectedMult) + '×' : '—'}
+            </div>
+          </div>
         </div>
       </div>
 
-      <p className="small" style={{ color: 'var(--mut)', margin: '4px 0 10px' }}>Pick 1 to 10 numbers and choose your minimum hit target. Multipliers scale with matching hits, paying up to thousands of times your bet.</p>
+      <p className="small" style={{ color: 'var(--mut)', margin: '4px 0 10px' }}>Select numbers and hit target. Multipliers scale dynamically based on your chosen numbers and target hits.</p>
       
       <div className="row">
         <button className="p" onClick={play} disabled={busy}>{busy ? 'Drawing...' : 'Draw'}</button>
@@ -405,7 +430,7 @@ export function Crash({ amt }) {
         <i style={{ width: s.st === 'bet' ? 100 - s.p * 100 + '%' : crashed ? 100 - s.np * 100 + '%' : '100%', background: crashed ? 'var(--bad)' : 'var(--ac)' }} />
       </div>
       <div style={{ position: 'relative' }}>
-        <canvas ref={cv} width="800" height="520" />
+        <canvas ref={cv} width="800" height="590" style={{ width: '100%', height: 'auto', display: 'block' }} />
         <div className="big" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', fontSize: 56, pointerEvents: 'none' }}>
           {s.st === 'bet'
             ? <><div style={{ fontSize: 72 }}>{s.left}</div><div className="small">Betting open. Place your bet</div></>

@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { 
-  db, toast, f, createRequest, refreshUser,
+  db, toast, f, createRequest, refreshUser, changePassword,
   supabase
 } from '../lib/supabase-db'
 
@@ -391,10 +391,92 @@ export function Profile({ u, me }) {
 }
 
 export function Settings({ u, onLogout }) {
+  const [oldPw, setOldPw] = useState('')
+  const [newPw, setNewPw] = useState('')
+  const [confirmPw, setConfirmPw] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function handlePasswordChange(e) {
+    e.preventDefault()
+    if (!oldPw) return toast('Enter current password')
+    if (newPw.length < 6) return toast('New password must be at least 6 characters')
+    if (newPw !== confirmPw) return toast('New passwords do not match')
+
+    setLoading(true)
+    try {
+      const res = await changePassword(oldPw, newPw)
+      if (res.error) {
+        toast(res.error)
+      } else {
+        toast('Password changed successfully!')
+        setOldPw('')
+        setNewPw('')
+        setConfirmPw('')
+      }
+    } catch (err) {
+      toast('Failed to change password')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
-    <div className="card"><b>Settings</b>
-      <p className="small">Manage your account preferences</p>
-      <button style={{ width: '100%', marginTop: 12, background: 'var(--bad)' }} onClick={onLogout}>Log Out</button>
-    </div>
+    <>
+      <div className="card">
+        <b>Account Details</b>
+        <div style={{ margin: '10px 0', fontSize: 13, lineHeight: 1.8 }}>
+          <div>Phone: <b style={{ color: 'var(--ac)' }}>{u.phone}</b></div>
+          <div>Username: <b>{u.username || 'Player'}</b></div>
+          <div>Joined: <span style={{ color: 'var(--mut)' }}>{u.created_at ? new Date(u.created_at).toLocaleDateString() : 'Active'}</span></div>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 14 }}>
+        <b>Change Password</b>
+        <p className="small">Ensure your account is protected with a strong password</p>
+        <form onSubmit={handlePasswordChange} style={{ marginTop: 10 }}>
+          <label>Current Password</label>
+          <input 
+            type="password" 
+            placeholder="Enter current password" 
+            value={oldPw} 
+            onChange={(e) => setOldPw(e.target.value)} 
+          />
+
+          <label style={{ marginTop: 8 }}>New Password</label>
+          <input 
+            type="password" 
+            placeholder="Min 6 characters" 
+            value={newPw} 
+            onChange={(e) => setNewPw(e.target.value)} 
+          />
+
+          <label style={{ marginTop: 8 }}>Confirm New Password</label>
+          <input 
+            type="password" 
+            placeholder="Re-enter new password" 
+            value={confirmPw} 
+            onChange={(e) => setConfirmPw(e.target.value)} 
+          />
+
+          <button 
+            type="submit" 
+            className="p" 
+            style={{ width: '100%', marginTop: 14 }} 
+            disabled={loading}
+          >
+            {loading ? 'Updating Password...' : 'Change Password'}
+          </button>
+        </form>
+      </div>
+
+      <div className="card" style={{ marginTop: 14 }}>
+        <b>Log Out</b>
+        <p className="small">Sign out of your account on this device</p>
+        <button style={{ width: '100%', marginTop: 12, background: 'var(--bad)' }} onClick={onLogout}>
+          Log Out
+        </button>
+      </div>
+    </>
   )
 }
