@@ -14,8 +14,9 @@ function ColorRoundsAdmin() {
   const [colorBets, setColorBets] = useState([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(0)
-  const [expandedPeriod, setExpandedPeriod] = useState(null)
+  const [openPeriods, setOpenPeriods] = useState({})
   const [now, setNow] = useState(Date.now())
+  const [colorResults, setColorResults] = useState({})
 
   useEffect(() => {
     const iv = setInterval(() => setNow(Date.now()), 1000)
@@ -25,15 +26,13 @@ function ColorRoundsAdmin() {
   const currentPeriod = Math.floor(now / PERIOD)
   const left = Math.ceil(((currentPeriod + 1) * PERIOD - now) / 1000)
 
-  const [colorResults, setColorResults] = useState({})
-
   const fetchColorBets = async () => {
     setLoading(true)
     try {
       const [{ data }, { data: resultRows }] = await Promise.all([
         supabase
           .from('color_bets')
-          .select('*, users(phone, username)')
+          .select('period_id, bet_type, bet_value, amount, win_amount, created_at')
           .order('created_at', { ascending: false })
           .limit(2000),
         supabase
@@ -70,7 +69,7 @@ function ColorRoundsAdmin() {
         period_id: pid,
         totalBet: 0,
         totalWin: 0,
-        bets: [],
+        betsCount: 0,
         options: {
           green: 0, violet: 0, red: 0,
           big: 0, small: 0,
@@ -82,7 +81,7 @@ function ColorRoundsAdmin() {
     const win = Number(b.win_amount || 0)
     periodMap[pid].totalBet += amt
     periodMap[pid].totalWin += win
-    periodMap[pid].bets.push(b)
+    periodMap[pid].betsCount++
 
     const val = String(b.bet_value || '').toLowerCase()
     if (val === 'green' || val === 'violet' || val === 'red') {
@@ -102,7 +101,7 @@ function ColorRoundsAdmin() {
         period_id: pid,
         totalBet: 0,
         totalWin: 0,
-        bets: [],
+        betsCount: 0,
         options: {
           green: 0, violet: 0, red: 0,
           big: 0, small: 0,
@@ -117,16 +116,20 @@ function ColorRoundsAdmin() {
   const totalPages = Math.max(1, Math.ceil(allPeriods.length / PAGE_SIZE))
   const displayed = allPeriods.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
+  const togglePeriod = (pid) => {
+    setOpenPeriods(prev => ({ ...prev, [pid]: !prev[pid] }))
+  }
+
   const sizeOf = (n) => (n >= 5 ? 'Big' : 'Small')
   const sizeCol = (n) => (n >= 5 ? '#f59e0b' : '#3b82f6')
   const cname = (n) => (n === 0 ? 'Red+Violet' : n === 5 ? 'Green+Violet' : n % 2 ? 'Green' : 'Red')
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
         <div>
-          <b>Color Trading Rounds & Bets</b>
-          <div className="small" style={{ color: 'var(--mut)' }}>Live cumulative amounts per option & settlement results</div>
+          <b>Color Trading Rounds</b>
+          <div className="small" style={{ color: 'var(--mut)' }}>Click any round to view cumulative bet amounts per option</div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span className="live" style={{ background: 'var(--ac)' }} />
@@ -135,115 +138,181 @@ function ColorRoundsAdmin() {
         </div>
       </div>
 
-      <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 620 }}>
-          <thead>
-            <tr style={{ color: 'var(--mut)', borderBottom: '1px solid var(--ln)', textAlign: 'left' }}>
-              <th style={{ padding: '8px 6px' }}>Period</th>
-              <th style={{ padding: '8px 6px' }}>Total Bets</th>
-              <th style={{ padding: '8px 6px' }}>Cumulative By Option</th>
-              <th style={{ padding: '8px 6px' }}>Outcome</th>
-              <th style={{ padding: '8px 6px' }}>House PnL</th>
-              <th style={{ padding: '8px 6px', textAlign: 'right' }}>Details</th>
-            </tr>
-          </thead>
-          <tbody>
-            {displayed.map((p) => {
-              const isLive = p.period_id === currentPeriod
-              const n = isLive ? null : (colorResults[p.period_id] ?? colorResult(p.period_id))
-              const housePnl = p.totalBet - p.totalWin
-              const isExpanded = expandedPeriod === p.period_id
-              const opt = p.options
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {displayed.map((p) => {
+          const isLive = p.period_id === currentPeriod
+          const n = isLive ? null : (colorResults[p.period_id] ?? colorResult(p.period_id))
+          const housePnl = p.totalBet - p.totalWin
+          const isOpen = !!openPeriods[p.period_id]
+          const opt = p.options
 
-              return (
-                <>
-                  <tr key={p.period_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: isLive ? 'rgba(46,230,122,0.04)' : undefined }}>
-                    <td style={{ padding: '9px 6px', fontWeight: 700 }}>
-                      #{p.period_id}
-                      {isLive && <span style={{ marginLeft: 6, fontSize: 10, background: 'var(--ac)', color: '#000', padding: '1px 5px', borderRadius: 8, fontWeight: 900 }}>LIVE</span>}
-                    </td>
-                    <td style={{ padding: '9px 6px' }}>
-                      <b style={{ color: p.totalBet > 0 ? 'var(--ac)' : 'inherit' }}>₹{f(p.totalBet)}</b>
-                      <div className="small" style={{ color: 'var(--mut)' }}>{p.bets.length} bet{p.bets.length === 1 ? '' : 's'}</div>
-                    </td>
-                    <td style={{ padding: '9px 6px' }}>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxWidth: 260, fontSize: 11 }}>
-                        {opt.green > 0 && <span style={{ background: '#2e9e5b22', color: '#2e9e5b', border: '1px solid #2e9e5b44', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>G: ₹{f(opt.green)}</span>}
-                        {opt.violet > 0 && <span style={{ background: '#8e44ad22', color: '#b975e6', border: '1px solid #8e44ad44', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>V: ₹{f(opt.violet)}</span>}
-                        {opt.red > 0 && <span style={{ background: '#e5393522', color: '#ff6b6b', border: '1px solid #e5393544', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>R: ₹{f(opt.red)}</span>}
-                        {opt.big > 0 && <span style={{ background: '#f59e0b22', color: '#f59e0b', border: '1px solid #f59e0b44', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>Big: ₹{f(opt.big)}</span>}
-                        {opt.small > 0 && <span style={{ background: '#3b82f622', color: '#60a5fa', border: '1px solid #3b82f644', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>Small: ₹{f(opt.small)}</span>}
-                        {Object.entries(opt.nums).filter(([, amt]) => amt > 0).map(([num, amt]) => (
-                          <span key={num} style={{ background: 'rgba(255,255,255,0.06)', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>#{num}: ₹{f(amt)}</span>
-                        ))}
-                        {p.totalBet === 0 && <span style={{ color: 'var(--mut)' }}>No bets placed</span>}
-                      </div>
-                    </td>
-                    <td style={{ padding: '9px 6px' }}>
-                      {isLive ? (
-                        <span style={{ color: '#ffd54f', fontSize: 12, fontWeight: 700 }}>In progress ({left}s)</span>
-                      ) : n !== null && n !== undefined ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span className={'ball sm ' + ballClass(n)}>{n}</span>
-                          <span style={{ color: sizeCol(n), fontWeight: 700, fontSize: 12 }}>{sizeOf(n)}</span>
-                          <span style={{ fontSize: 11, color: 'var(--mut)' }}>{cname(n)}</span>
-                        </div>
-                      ) : (
-                        <span style={{ color: 'var(--mut)', fontSize: 12 }}>Pending...</span>
-                      )}
-                    </td>
-                    <td style={{ padding: '9px 6px', fontWeight: 700, color: housePnl > 0 ? 'var(--ac)' : housePnl < 0 ? 'var(--bad)' : 'inherit' }}>
-                      {isLive ? '—' : (housePnl >= 0 ? '+' : '') + '₹' + f(housePnl)}
-                    </td>
-                    <td style={{ padding: '9px 6px', textAlign: 'right' }}>
-                      <button 
-                        onClick={() => setExpandedPeriod(isExpanded ? null : p.period_id)}
-                        disabled={p.bets.length === 0}
-                        style={{ padding: '3px 8px', fontSize: 11, background: isExpanded ? 'var(--ac)' : 'var(--c2)', color: isExpanded ? '#000' : 'inherit' }}
-                      >
-                        {isExpanded ? 'Hide' : `${p.bets.length} Bets`}
-                      </button>
-                    </td>
-                  </tr>
-
-                  {isExpanded && (
-                    <tr style={{ background: 'rgba(0,0,0,0.3)' }}>
-                      <td colSpan="6" style={{ padding: '10px 12px' }}>
-                        <b style={{ fontSize: 12, color: 'var(--ac)' }}>All Bets Placed for Period #{p.period_id}:</b>
-                        <table style={{ width: '100%', marginTop: 6, fontSize: 12 }}>
-                          <thead>
-                            <tr style={{ color: 'var(--mut)', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                              <th style={{ padding: '4px' }}>Player</th>
-                              <th style={{ padding: '4px' }}>Type</th>
-                              <th style={{ padding: '4px' }}>Choice</th>
-                              <th style={{ padding: '4px' }}>Bet Amount</th>
-                              <th style={{ padding: '4px' }}>Win Amount</th>
-                              <th style={{ padding: '4px' }}>Time</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {p.bets.map((b) => (
-                              <tr key={b.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                                <td style={{ padding: '4px' }}>{b.users?.phone || b.users?.username || 'User'}</td>
-                                <td style={{ padding: '4px', textTransform: 'capitalize' }}>{b.bet_type}</td>
-                                <td style={{ padding: '4px', fontWeight: 700, textTransform: 'capitalize' }}>{b.bet_value}</td>
-                                <td style={{ padding: '4px', fontWeight: 700 }}>₹{f(b.amount)}</td>
-                                <td style={{ padding: '4px', fontWeight: 700, color: Number(b.win_amount) > 0 ? 'var(--ac)' : 'inherit' }}>
-                                  ₹{f(b.win_amount || 0)}
-                                </td>
-                                <td style={{ padding: '4px', color: 'var(--mut)', fontSize: 11 }}>{new Date(b.created_at).toLocaleTimeString()}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </td>
-                    </tr>
+          return (
+            <div 
+              key={p.period_id}
+              style={{ 
+                background: 'var(--c2)', 
+                borderRadius: 10, 
+                border: '1px solid ' + (isOpen ? 'var(--ac)' : isLive ? '#2ee67a44' : '#ffffff14'),
+                overflow: 'hidden',
+                transition: 'border 0.2s'
+              }}
+            >
+              {/* Header Dropdown Summary Row */}
+              <div 
+                onClick={() => togglePeriod(p.period_id)}
+                style={{ 
+                  padding: '12px 14px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between', 
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  gap: 10,
+                  flexWrap: 'wrap'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <b style={{ fontSize: 14 }}>#{p.period_id}</b>
+                  {isLive ? (
+                    <span style={{ fontSize: 10, background: 'var(--ac)', color: '#000', padding: '2px 7px', borderRadius: 8, fontWeight: 900 }}>
+                      LIVE ({left}s)
+                    </span>
+                  ) : n !== null && n !== undefined ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span className={'ball sm ' + ballClass(n)}>{n}</span>
+                      <span style={{ color: sizeCol(n), fontWeight: 700, fontSize: 12 }}>{sizeOf(n)}</span>
+                      <span style={{ fontSize: 11, color: 'var(--mut)' }}>{cname(n)}</span>
+                    </div>
+                  ) : (
+                    <span style={{ color: 'var(--mut)', fontSize: 12 }}>Pending settlement</span>
                   )}
-                </>
-              )
-            })}
-          </tbody>
-        </table>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: p.totalBet > 0 ? 'var(--ac)' : 'inherit' }}>
+                      Pool: ₹{f(p.totalBet)}
+                    </div>
+                    <div style={{ fontSize: 11, color: isLive ? '#ffd54f' : housePnl >= 0 ? 'var(--ac)' : 'var(--bad)', fontWeight: 600 }}>
+                      {isLive ? `${p.betsCount} bets placed` : `House: ${housePnl >= 0 ? '+' : ''}₹${f(housePnl)}`}
+                    </div>
+                  </div>
+                  <span style={{ 
+                    fontSize: 12, 
+                    color: 'var(--mut)', 
+                    display: 'inline-block',
+                    transform: isOpen ? 'rotate(180deg)' : 'none', 
+                    transition: 'transform 0.2s' 
+                  }}>
+                    ▼
+                  </span>
+                </div>
+              </div>
+
+              {/* Collapsible Dropdown Details */}
+              {isOpen && (
+                <div style={{ padding: '14px', borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.22)' }}>
+                  {/* Round Overview Cards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, marginBottom: 14 }}>
+                    <div style={{ background: 'rgba(255,255,255,0.04)', padding: '8px 10px', borderRadius: 8 }}>
+                      <div style={{ fontSize: 11, color: 'var(--mut)' }}>Total Bet Pool</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ac)', marginTop: 2 }}>₹{f(p.totalBet)}</div>
+                      <div style={{ fontSize: 10, color: 'var(--mut)' }}>{p.betsCount} bets placed</div>
+                    </div>
+
+                    <div style={{ background: 'rgba(255,255,255,0.04)', padding: '8px 10px', borderRadius: 8 }}>
+                      <div style={{ fontSize: 11, color: 'var(--mut)' }}>Total Payout</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, marginTop: 2 }}>{isLive ? '—' : '₹' + f(p.totalWin)}</div>
+                      <div style={{ fontSize: 10, color: 'var(--mut)' }}>{isLive ? 'In progress' : 'Won by players'}</div>
+                    </div>
+
+                    <div style={{ background: 'rgba(255,255,255,0.04)', padding: '8px 10px', borderRadius: 8 }}>
+                      <div style={{ fontSize: 11, color: 'var(--mut)' }}>House Net PnL</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: housePnl >= 0 ? 'var(--ac)' : 'var(--bad)', marginTop: 2 }}>
+                        {isLive ? '—' : (housePnl >= 0 ? '+' : '') + '₹' + f(housePnl)}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--mut)' }}>{housePnl >= 0 ? 'House Profit' : 'House Loss'}</div>
+                    </div>
+
+                    <div style={{ background: 'rgba(255,255,255,0.04)', padding: '8px 10px', borderRadius: 8 }}>
+                      <div style={{ fontSize: 11, color: 'var(--mut)' }}>Round Outcome</div>
+                      <div style={{ marginTop: 2 }}>
+                        {isLive ? (
+                          <span style={{ color: '#ffd54f', fontSize: 12, fontWeight: 700 }}>In progress ({left}s)</span>
+                        ) : n !== null && n !== undefined ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span className={'ball sm ' + ballClass(n)}>{n}</span>
+                            <span style={{ color: sizeCol(n), fontWeight: 700, fontSize: 12 }}>{sizeOf(n)}</span>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: 12, color: 'var(--mut)' }}>Pending</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Cumulative Amounts By Option Section */}
+                  <b style={{ fontSize: 11, color: 'var(--mut)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 8 }}>
+                    Cumulative Amount Bet Per Option
+                  </b>
+
+                  {/* Main Colors & Sizes */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 8, marginBottom: 12 }}>
+                    <div style={{ background: '#2e9e5b15', border: '1px solid #2e9e5b33', borderRadius: 8, padding: '8px 10px' }}>
+                      <div style={{ color: '#2e9e5b', fontWeight: 800, fontSize: 12 }}>Green (1.96×)</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, marginTop: 3 }}>₹{f(opt.green)}</div>
+                    </div>
+                    <div style={{ background: '#8e44ad15', border: '1px solid #8e44ad33', borderRadius: 8, padding: '8px 10px' }}>
+                      <div style={{ color: '#b975e6', fontWeight: 800, fontSize: 12 }}>Violet (4.4×)</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, marginTop: 3 }}>₹{f(opt.violet)}</div>
+                    </div>
+                    <div style={{ background: '#e5393515', border: '1px solid #e5393533', borderRadius: 8, padding: '8px 10px' }}>
+                      <div style={{ color: '#ff6b6b', fontWeight: 800, fontSize: 12 }}>Red (1.96×)</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, marginTop: 3 }}>₹{f(opt.red)}</div>
+                    </div>
+                    <div style={{ background: '#f59e0b15', border: '1px solid #f59e0b33', borderRadius: 8, padding: '8px 10px' }}>
+                      <div style={{ color: '#f59e0b', fontWeight: 800, fontSize: 12 }}>Big (5-9)</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, marginTop: 3 }}>₹{f(opt.big)}</div>
+                    </div>
+                    <div style={{ background: '#3b82f615', border: '1px solid #3b82f633', borderRadius: 8, padding: '8px 10px' }}>
+                      <div style={{ color: '#60a5fa', fontWeight: 800, fontSize: 12 }}>Small (0-4)</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, marginTop: 3 }}>₹{f(opt.small)}</div>
+                    </div>
+                  </div>
+
+                  {/* Numbers 0 - 9 Grid */}
+                  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 11, color: 'var(--mut)', marginBottom: 8, fontWeight: 600 }}>Numbers Bet Pool (8.8× payout):</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: 6 }}>
+                      {Array.from({ length: 10 }, (_, num) => {
+                        const numAmt = opt.nums[num] || 0
+                        return (
+                          <div 
+                            key={num} 
+                            style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'space-between', 
+                              background: numAmt > 0 ? 'rgba(46,230,122,0.08)' : 'rgba(255,255,255,0.03)', 
+                              border: '1px solid ' + (numAmt > 0 ? 'rgba(46,230,122,0.3)' : 'rgba(255,255,255,0.05)'),
+                              padding: '5px 8px', 
+                              borderRadius: 6 
+                            }}
+                          >
+                            <span className={'ball sm ' + ballClass(num)} style={{ transform: 'scale(0.85)' }}>{num}</span>
+                            <span style={{ fontSize: 12, fontWeight: numAmt > 0 ? 800 : 500, color: numAmt > 0 ? 'var(--ac)' : 'var(--mut)' }}>
+                              ₹{f(numAmt)}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       {totalPages > 1 && (
@@ -271,12 +340,11 @@ function ColorRoundsAdmin() {
   )
 }
 
-// ------------------------------------------------------------------ Crash Rounds Admin
 function CrashRoundsAdmin() {
   const [crashBets, setCrashBets] = useState([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(0)
-  const [expandedRound, setExpandedRound] = useState(null)
+  const [openRounds, setOpenRounds] = useState({})
   const [st, setSt] = useState(() => cstate())
 
   useEffect(() => {
@@ -289,7 +357,7 @@ function CrashRoundsAdmin() {
     try {
       const { data, error } = await supabase
         .from('bets')
-        .select('*, users(phone, username)')
+        .select('details, amount, win_amount, created_at')
         .eq('game', 'crash')
         .order('created_at', { ascending: false })
         .limit(2000)
@@ -316,14 +384,14 @@ function CrashRoundsAdmin() {
         round_id: rid,
         totalBet: 0,
         totalWin: 0,
-        bets: []
+        betsCount: 0
       }
     }
     const amt = Number(b.amount || 0)
     const win = Number(b.win_amount || 0)
     roundMap[rid].totalBet += amt
     roundMap[rid].totalWin += win
-    roundMap[rid].bets.push(b)
+    roundMap[rid].betsCount++
   })
 
   // Ensure current round and past 30 rounds exist in the list
@@ -335,7 +403,7 @@ function CrashRoundsAdmin() {
         round_id: rid,
         totalBet: 0,
         totalWin: 0,
-        bets: []
+        betsCount: 0
       }
     }
   }
@@ -345,12 +413,16 @@ function CrashRoundsAdmin() {
   const totalPages = Math.max(1, Math.ceil(allRounds.length / PAGE_SIZE))
   const displayed = allRounds.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
+  const toggleRound = (rid) => {
+    setOpenRounds(prev => ({ ...prev, [rid]: !prev[rid] }))
+  }
+
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
         <div>
-          <b>Crash Game Rounds & Bets</b>
-          <div className="small" style={{ color: 'var(--mut)' }}>Live cumulative bet pools, multipliers & payouts</div>
+          <b>Crash Game Rounds</b>
+          <div className="small" style={{ color: 'var(--mut)' }}>Click any round to view pool amounts, multiplier and payout details</div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span className="live" style={{ background: st.st === 'crash' ? 'var(--bad)' : 'var(--ac)' }} />
@@ -361,107 +433,112 @@ function CrashRoundsAdmin() {
         </div>
       </div>
 
-      <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 620 }}>
-          <thead>
-            <tr style={{ color: 'var(--mut)', borderBottom: '1px solid var(--ln)', textAlign: 'left' }}>
-              <th style={{ padding: '8px 6px' }}>Round</th>
-              <th style={{ padding: '8px 6px' }}>Crash Multiplier</th>
-              <th style={{ padding: '8px 6px' }}>Total Bet Pool</th>
-              <th style={{ padding: '8px 6px' }}>Total Payout</th>
-              <th style={{ padding: '8px 6px' }}>House PnL</th>
-              <th style={{ padding: '8px 6px', textAlign: 'right' }}>Details</th>
-            </tr>
-          </thead>
-          <tbody>
-            {displayed.map((r) => {
-              const isLive = r.round_id === curRound
-              let crashPoint = null
-              try { crashPoint = cpOf(r.round_id) } catch (e) { crashPoint = 1.95 }
-              const housePnl = r.totalBet - r.totalWin
-              const isExpanded = expandedRound === r.round_id
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {displayed.map((r) => {
+          const isLive = r.round_id === curRound
+          let crashPoint = null
+          try { crashPoint = cpOf(r.round_id) } catch (e) { crashPoint = 1.95 }
+          const housePnl = r.totalBet - r.totalWin
+          const isOpen = !!openRounds[r.round_id]
 
-              return (
-                <>
-                  <tr key={r.round_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: isLive ? 'rgba(46,230,122,0.04)' : undefined }}>
-                    <td style={{ padding: '9px 6px', fontWeight: 700 }}>
-                      Round #{r.round_id}
-                      {isLive && <span style={{ marginLeft: 6, fontSize: 10, background: 'var(--ac)', color: '#000', padding: '1px 5px', borderRadius: 8, fontWeight: 900 }}>LIVE</span>}
-                    </td>
-                    <td style={{ padding: '9px 6px' }}>
-                      {isLive ? (
-                        <b style={{ color: st.st === 'crash' ? 'var(--bad)' : 'var(--ac)' }}>
-                          {st.st === 'bet' ? 'Betting Phase' : st.st === 'crash' ? 'Crashed at ' + f(st.m) + '×' : f(st.m) + '× (Flying)'}
-                        </b>
-                      ) : (
-                        <b style={{ color: crashPoint < 2 ? 'var(--bad)' : 'var(--ac)' }}>{f(crashPoint)}×</b>
-                      )}
-                    </td>
-                    <td style={{ padding: '9px 6px' }}>
-                      <b style={{ color: r.totalBet > 0 ? 'var(--ac)' : 'inherit' }}>₹{f(r.totalBet)}</b>
-                      <div className="small" style={{ color: 'var(--mut)' }}>{r.bets.length} bet{r.bets.length === 1 ? '' : 's'}</div>
-                    </td>
-                    <td style={{ padding: '9px 6px', fontWeight: 700, color: r.totalWin > 0 ? 'var(--ac)' : 'inherit' }}>
-                      ₹{f(r.totalWin)}
-                    </td>
-                    <td style={{ padding: '9px 6px', fontWeight: 700, color: housePnl > 0 ? 'var(--ac)' : housePnl < 0 ? 'var(--bad)' : 'inherit' }}>
-                      {isLive ? '—' : (housePnl >= 0 ? '+' : '') + '₹' + f(housePnl)}
-                    </td>
-                    <td style={{ padding: '9px 6px', textAlign: 'right' }}>
-                      <button 
-                        onClick={() => setExpandedRound(isExpanded ? null : r.round_id)}
-                        disabled={r.bets.length === 0}
-                        style={{ padding: '3px 8px', fontSize: 11, background: isExpanded ? 'var(--ac)' : 'var(--c2)', color: isExpanded ? '#000' : 'inherit' }}
-                      >
-                        {isExpanded ? 'Hide' : `${r.bets.length} Bets`}
-                      </button>
-                    </td>
-                  </tr>
-
-                  {isExpanded && (
-                    <tr style={{ background: 'rgba(0,0,0,0.3)' }}>
-                      <td colSpan="6" style={{ padding: '10px 12px' }}>
-                        <b style={{ fontSize: 12, color: 'var(--ac)' }}>All Bets Placed in Round #{r.round_id}:</b>
-                        <table style={{ width: '100%', marginTop: 6, fontSize: 12 }}>
-                          <thead>
-                            <tr style={{ color: 'var(--mut)', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                              <th style={{ padding: '4px' }}>Player</th>
-                              <th style={{ padding: '4px' }}>Bet Amount</th>
-                              <th style={{ padding: '4px' }}>Multiplier</th>
-                              <th style={{ padding: '4px' }}>Payout</th>
-                              <th style={{ padding: '4px' }}>Status</th>
-                              <th style={{ padding: '4px' }}>Time</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {r.bets.map((b) => {
-                              const bMult = b.details?.multiplier ? f(b.details.multiplier) + '×' : '—'
-                              const bStatus = b.details?.status || (Number(b.win_amount) > 0 ? 'Cashed Out' : 'Crashed')
-                              return (
-                                <tr key={b.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                                  <td style={{ padding: '4px' }}>{b.users?.phone || b.users?.username || 'User'}</td>
-                                  <td style={{ padding: '4px', fontWeight: 700 }}>₹{f(b.amount)}</td>
-                                  <td style={{ padding: '4px', fontWeight: 700, color: 'var(--ac)' }}>{bMult}</td>
-                                  <td style={{ padding: '4px', fontWeight: 700, color: Number(b.win_amount) > 0 ? 'var(--ac)' : 'inherit' }}>
-                                    ₹{f(b.win_amount || 0)}
-                                  </td>
-                                  <td style={{ padding: '4px', textTransform: 'capitalize', color: bStatus.includes('Cash') || Number(b.win_amount) > 0 ? 'var(--ac)' : 'var(--bad)', fontWeight: 600 }}>
-                                    {bStatus}
-                                  </td>
-                                  <td style={{ padding: '4px', color: 'var(--mut)', fontSize: 11 }}>{new Date(b.created_at).toLocaleTimeString()}</td>
-                                </tr>
-                              )
-                            })}
-                          </tbody>
-                        </table>
-                      </td>
-                    </tr>
+          return (
+            <div 
+              key={r.round_id}
+              style={{ 
+                background: 'var(--c2)', 
+                borderRadius: 10, 
+                border: '1px solid ' + (isOpen ? 'var(--ac)' : isLive ? '#2ee67a44' : '#ffffff14'),
+                overflow: 'hidden',
+                transition: 'border 0.2s'
+              }}
+            >
+              {/* Header Dropdown Summary Row */}
+              <div 
+                onClick={() => toggleRound(r.round_id)}
+                style={{ 
+                  padding: '12px 14px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between', 
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  gap: 10,
+                  flexWrap: 'wrap'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <b style={{ fontSize: 14 }}>Round #{r.round_id}</b>
+                  {isLive ? (
+                    <span style={{ fontSize: 10, background: 'var(--ac)', color: '#000', padding: '2px 7px', borderRadius: 8, fontWeight: 900 }}>
+                      LIVE {st.st === 'bet' ? `(Betting ${st.left}s)` : st.st === 'crash' ? 'CRASHED' : `${f(st.m)}× FLYING`}
+                    </span>
+                  ) : (
+                    <b style={{ fontSize: 13, color: crashPoint < 2 ? 'var(--bad)' : 'var(--ac)' }}>
+                      {f(crashPoint)}×
+                    </b>
                   )}
-                </>
-              )
-            })}
-          </tbody>
-        </table>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: r.totalBet > 0 ? 'var(--ac)' : 'inherit' }}>
+                      Pool: ₹{f(r.totalBet)}
+                    </div>
+                    <div style={{ fontSize: 11, color: isLive ? '#ffd54f' : housePnl >= 0 ? 'var(--ac)' : 'var(--bad)', fontWeight: 600 }}>
+                      {isLive ? `${r.betsCount} bets placed` : `House: ${housePnl >= 0 ? '+' : ''}₹${f(housePnl)}`}
+                    </div>
+                  </div>
+                  <span style={{ 
+                    fontSize: 12, 
+                    color: 'var(--mut)', 
+                    display: 'inline-block',
+                    transform: isOpen ? 'rotate(180deg)' : 'none', 
+                    transition: 'transform 0.2s' 
+                  }}>
+                    ▼
+                  </span>
+                </div>
+              </div>
+
+              {/* Collapsible Dropdown Details */}
+              {isOpen && (
+                <div style={{ padding: '14px', borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.22)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+                    <div style={{ background: 'rgba(255,255,255,0.04)', padding: '8px 10px', borderRadius: 8 }}>
+                      <div style={{ fontSize: 11, color: 'var(--mut)' }}>Total Bet Pool</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ac)', marginTop: 2 }}>₹{f(r.totalBet)}</div>
+                      <div style={{ fontSize: 10, color: 'var(--mut)' }}>{r.betsCount} bets in this round</div>
+                    </div>
+
+                    <div style={{ background: 'rgba(255,255,255,0.04)', padding: '8px 10px', borderRadius: 8 }}>
+                      <div style={{ fontSize: 11, color: 'var(--mut)' }}>Crash Multiplier</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: crashPoint < 2 ? 'var(--bad)' : 'var(--ac)', marginTop: 2 }}>
+                        {isLive ? (st.st === 'crash' ? `Crashed at ${f(st.m)}×` : st.st === 'bet' ? 'Pending flight' : `Flying at ${f(st.m)}×`) : `${f(crashPoint)}×`}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--mut)' }}>{isLive ? 'Active live round' : 'Final settled crash multiplier'}</div>
+                    </div>
+
+                    <div style={{ background: 'rgba(255,255,255,0.04)', padding: '8px 10px', borderRadius: 8 }}>
+                      <div style={{ fontSize: 11, color: 'var(--mut)' }}>Total Player Payout</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: r.totalWin > 0 ? 'var(--ac)' : 'inherit', marginTop: 2 }}>
+                        ₹{f(r.totalWin)}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--mut)' }}>Total paid out to players</div>
+                    </div>
+
+                    <div style={{ background: 'rgba(255,255,255,0.04)', padding: '8px 10px', borderRadius: 8 }}>
+                      <div style={{ fontSize: 11, color: 'var(--mut)' }}>House Net PnL</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: housePnl >= 0 ? 'var(--ac)' : 'var(--bad)', marginTop: 2 }}>
+                        {isLive ? '—' : (housePnl >= 0 ? '+' : '') + '₹' + f(housePnl)}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--mut)' }}>{housePnl >= 0 ? 'House Profit' : 'House Loss'}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       {totalPages > 1 && (

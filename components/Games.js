@@ -520,7 +520,10 @@ export function Color({ amt }) {
         <div><div className="small">Period</div><b>#{id}</b></div>
         <div style={{ textAlign: 'center' }}><div className="small">Closes in</div><b style={{ fontSize: 22 }}>0:{String(left).padStart(2, '0')}</b></div>
         <div style={{ textAlign: 'right' }}><div className="small">Last result</div>
-          <span className={'ball sm ' + ballClass(last)}>{last}</span> <b style={{ color: sizeCol(last) }}>{sizeOf(last)}</b></div>
+          {last !== null && last !== undefined
+            ? <><span className={'ball sm ' + ballClass(last)}>{last}</span> <b style={{ color: sizeCol(last) }}>{sizeOf(last)}</b></>
+            : <span style={{ color: 'var(--mut)', fontSize: 12 }}>…</span>
+          }</div>
       </div>
       <div style={{ position: 'relative', marginTop: 12, padding: '14px 0', minHeight: 340, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 16 }}>
         {locked && <div className="lock">{left}</div>}
@@ -558,6 +561,9 @@ export function Color({ amt }) {
           <thead><tr><th>Period</th><th>Number</th><th>Big / Small</th><th>Colour</th></tr></thead>
           <tbody>{past.map((p) => {
             const n = colorResult(p)
+            if (n === null || n === undefined) {
+              return <tr key={p}><td>#{p}</td><td colSpan="3" style={{ color: 'var(--mut)', fontSize: 12 }}>Loading...</td></tr>
+            }
             return <tr key={p}><td>#{p}</td><td><span className={'ball sm ' + ballClass(n)}>{n}</span></td><td style={{ color: sizeCol(n), fontWeight: 700 }}>{sizeOf(n)}</td><td>{cname(n)}</td></tr>
           })}</tbody>
         </table>
