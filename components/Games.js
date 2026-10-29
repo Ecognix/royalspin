@@ -163,34 +163,33 @@ export function Mines({ amt }) {
 }
 
 // ------------------------------------------------------------------ Keno
+// Payout ladder for Keno hits 3 to 10 (each has a unique, strictly increasing multiplier up to 300x)
+const KENO_PAYOUTS = {
+  3: 1.8,
+  4: 3.5,
+  5: 7.5,
+  6: 18.0,
+  7: 45.0,
+  8: 100.0,
+  9: 190.0,
+  10: 300.0
+}
+
 export function Keno({ amt }) {
   const [K, setK] = useState([]), [drawn, setDrawn] = useState([]), [busy, setBusy] = useState(false)
-  const [targetHits, setTargetHits] = useState(2)
   const [lastResult, setLastResult] = useState(null)
 
   const tog = (i) => !busy && setK((k) => k.includes(i) ? k.filter((x) => x !== i) : k.length < 10 ? [...k, i] : k)
 
-  // Multiplier function: higher targetHits = higher payout multiplier; lower targetHits = easier to win with lower multiplier
-  const getKenoMult = (h, p, minH) => {
-    if (h < minH) return 0
-    const prob = (comb(p, h) * comb(40 - p, 10 - h)) / comb(40, 10)
-    if (!prob || prob <= 0) return 0
-    const edge = E('keno')
-    const scaling = Math.pow(minH / Math.max(1, p), 0.85)
-    const mult = (edge * 0.82 / prob) * scaling
-    return Math.min(300, Math.max(1.15, mult))
-  }
-
   function play() {
     if (busy) return
-    if (!K.length) return toast('Pick at least 1 number')
+    if (!K.length) return toast('Pick at least 1 number (up to 10)')
     const a = place('keno', amt); if (!a) return
     setBusy(true); setDrawn([]); setLastResult(null)
     const d = []; while (d.length < 10) { const x = Math.floor(rnd() * 40); if (!d.includes(x)) d.push(x) }
     const p = K.length
     const h = d.filter((x) => K.includes(x)).length
-    const effectiveMinHits = Math.min(targetHits, p)
-    const m = getKenoMult(h, p, effectiveMinHits)
+    const m = (h >= 3 && h <= 10) ? KENO_PAYOUTS[h] : h > 10 ? 300.0 : 0
 
     d.forEach((x, j) => setTimeout(() => setDrawn((z) => [...z, x]), j * 160))
     setTimeout(() => {
@@ -198,18 +197,13 @@ export function Keno({ amt }) {
       pay('keno', a, winAmt)
       setLastResult({ win: m > 0, net: winAmt - a, h, p })
       if (m > 0) {
-        notify({ type: 'win', title: `Keno - ${h} Hits`, message: `Win ₹${f(winAmt)}`, details: `${h}/${p} numbers matched (${effectiveMinHits}+ hits tier) · Payout ${f(m)}×` })
+        notify({ type: 'win', title: `Keno - ${h} Hits`, message: `Win ₹${f(winAmt)}`, details: `${h}/${p} numbers matched · Payout ${f(m)}×` })
       } else {
-        notify({ type: 'loss', title: `Keno - ${h} Hits`, message: `Lost ₹${f(a)}`, details: `${h}/${p} numbers matched (Needed ${effectiveMinHits}+ hits to win)` })
+        notify({ type: 'loss', title: `Keno - ${h} Hits`, message: `Lost ₹${f(a)}`, details: `${h}/${p} numbers matched (Min 3 hits required to win)` })
       }
       setBusy(false)
     }, 1750)
   }
-
-  const pCount = K.length
-  const maxPossibleHits = Math.max(2, pCount)
-  const currentMin = Math.min(targetHits, maxPossibleHits)
-  const exactSelectedMult = pCount >= 2 ? getKenoMult(currentMin, pCount, currentMin) : 0
 
   return (
     <>
@@ -226,59 +220,42 @@ export function Keno({ amt }) {
         })}
       </div>
 
-      {/* Dropdown with Exact Multiplier shown right next to it */}
+      {/* Payout multipliers ladder in small text / badges */}
       <div style={{ marginTop: 12, marginBottom: 8, background: 'rgba(255,255,255,0.03)', padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ fontSize: 11, color: 'var(--mut)', marginBottom: 6, fontWeight: 600 }}>
-          Choose hits to win ({pCount ? `${pCount} numbers selected` : 'Pick numbers on board'}):
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <span className="small" style={{ fontWeight: 700, color: '#fff' }}>Winning Multipliers (Hits 3 to 10):</span>
+          <span className="small" style={{ color: 'var(--ac)', fontWeight: 800 }}>Max 300× at 10 hits</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <select 
-            value={currentMin} 
-            disabled={busy || pCount < 2}
-            onChange={(e) => setTargetHits(Number(e.target.value))}
-            style={{ 
-              flex: 1, 
-              padding: '9px 12px', 
-              borderRadius: 8, 
-              background: 'var(--c2)', 
-              border: '1px solid var(--ln)', 
-              color: '#fff', 
-              fontSize: 13,
-              cursor: pCount < 2 ? 'not-allowed' : 'pointer',
-              outline: 'none'
-            }}
-          >
-            {pCount >= 2 ? (
-              Array.from({ length: pCount - 1 }, (_, i) => i + 2).map((hits) => (
-                <option key={hits} value={hits}>
-                  {hits} Matching Hits
-                </option>
-              ))
-            ) : (
-              <option value={2}>Pick at least 2 numbers</option>
-            )}
-          </select>
-
-          <div style={{ 
-            background: 'var(--c2)', 
-            border: '1px solid var(--ln)', 
-            borderRadius: 8, 
-            padding: '6px 14px', 
-            textAlign: 'center',
-            minWidth: 105,
-            flexShrink: 0
-          }}>
-            <div style={{ fontSize: 9, color: 'var(--mut)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700 }}>
-              Multiplier
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(68px, 1fr))', gap: 6 }}>
+          {[
+            { h: 3, m: '1.8×' },
+            { h: 4, m: '3.5×' },
+            { h: 5, m: '7.5×' },
+            { h: 6, m: '18×' },
+            { h: 7, m: '45×' },
+            { h: 8, m: '100×' },
+            { h: 9, m: '190×' },
+            { h: 10, m: '300×' }
+          ].map(item => (
+            <div 
+              key={item.h} 
+              style={{ 
+                background: 'rgba(255,255,255,0.04)', 
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: 6, 
+                padding: '4px 6px', 
+                textAlign: 'center' 
+              }}
+            >
+              <div style={{ fontSize: 10, color: 'var(--mut)' }}>{item.h} hits</div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ac)' }}>{item.m}</div>
             </div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: pCount >= 2 ? 'var(--ac)' : 'var(--mut)', lineHeight: 1.2, marginTop: 1 }}>
-              {pCount >= 2 ? f(exactSelectedMult) + '×' : '—'}
-            </div>
-          </div>
+          ))}
         </div>
+        <p className="small" style={{ color: 'var(--mut)', margin: '6px 0 0', fontSize: 11 }}>
+          Matching 3 to 10 numbers pays gradually increasing profit multipliers up to 300×. Hits under 3 do not pay.
+        </p>
       </div>
-
-      <p className="small" style={{ color: 'var(--mut)', margin: '4px 0 10px' }}>Select numbers and hit target. Multipliers scale dynamically based on your chosen numbers and target hits (max 300×).</p>
       
       <div className="row">
         <button className="p" onClick={play} disabled={busy}>{busy ? 'Drawing...' : 'Draw'}</button>
