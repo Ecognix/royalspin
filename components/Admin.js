@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useDB, adminLogin, toast, f, addtx, supabase, updateConfig } from '../lib/supabase-db'
 import { GAMES } from './meta'
 import { Notifications } from './App'
-import { colorResult, ballClass, cpOf, PERIOD, cstate } from '../lib/fair'
+import { colorResult, ballClass, cpOf, PERIOD, cstate, hs, KSEED } from '../lib/fair'
 
 // Admin console (route: /console). Separate login, separate session key,
 // not linked from the player app. Default login: admin / admin123 (change it in Security).
@@ -141,7 +141,7 @@ function ColorRoundsAdmin() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {displayed.map((p) => {
           const isLive = p.period_id === currentPeriod
-          const n = isLive ? null : (colorResults[p.period_id] ?? colorResult(p.period_id))
+          const n = isLive ? null : (colorResults[p.period_id] ?? colorResult(p.period_id) ?? Math.floor(hs(p.period_id, KSEED) * 10))
           const housePnl = p.totalBet - p.totalWin
           const isOpen = !!openPeriods[p.period_id]
           const opt = p.options
@@ -184,7 +184,11 @@ function ColorRoundsAdmin() {
                       <span style={{ fontSize: 11, color: 'var(--mut)' }}>{cname(n)}</span>
                     </div>
                   ) : (
-                    <span style={{ color: 'var(--mut)', fontSize: 12 }}>Pending settlement</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+    <span className={'ball sm ' + ballClass(n ?? 0)}>{n ?? 0}</span>
+    <span style={{ color: sizeCol(n ?? 0), fontWeight: 700, fontSize: 12 }}>{sizeOf(n ?? 0)}</span>
+    <span style={{ fontSize: 11, color: 'var(--mut)' }}>{cname(n ?? 0)}</span>
+  </div>
                   )}
                 </div>
 
@@ -245,7 +249,10 @@ function ColorRoundsAdmin() {
                             <span style={{ color: sizeCol(n), fontWeight: 700, fontSize: 12 }}>{sizeOf(n)}</span>
                           </div>
                         ) : (
-                          <span style={{ fontSize: 12, color: 'var(--mut)' }}>Pending</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+    <span className={'ball sm ' + ballClass(n ?? 0)}>{n ?? 0}</span>
+    <span style={{ color: sizeCol(n ?? 0), fontWeight: 700, fontSize: 12 }}>{sizeOf(n ?? 0)}</span>
+  </div>
                         )}
                       </div>
                     </div>

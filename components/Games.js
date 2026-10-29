@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { useDB, place, pay, cancelCrashBet, toast, notify, notifySubscribers, f, user, supabase } from '../lib/supabase-db'
-import { E, rnd, BETW, G, BLK, sched, cstate, cpOf, PERIOD, LOCK, colorResult, colorResultCache, computeLowestBetResult, ballClass } from '../lib/fair'
+import { E, rnd, BETW, G, BLK, sched, cstate, cpOf, crashMult, PERIOD, LOCK, colorResult, colorResultCache, computeLowestBetResult, ballClass } from '../lib/fair'
 
 const FULL = { width: '100%' }
 const comb = (n, k) => { if (k < 0 || k > n) return 0; let r = 1; for (let i = 1; i <= k; i++) r = (r * (n - k + i)) / i; return r }
@@ -50,6 +50,7 @@ export function Dice({ amt }) {
       </div>
       <input type="range" min="2" max="98" value={t} onChange={(e) => setT(+e.target.value)} />
       <p className="small">{over ? 'Over' : 'Under'} {t} · chance {ch}% · pays {f(mult)}×</p>
+      <p className="small" style={{ color: 'var(--mut)', marginTop: 4 }}>Win multiplier is dynamically calculated based on your target roll. Choose your risk — pays from 1.01× up to 49.50× your bet.</p>
       <button className="p" style={{ ...FULL, opacity: busy ? 0.7 : 1 }} onClick={roll} disabled={busy}>
         {busy ? 'Rolling...' : 'Roll'}
       </button>
@@ -91,6 +92,7 @@ export function Limbo({ amt }) {
       
       <label>Target multiplier</label>
       <input type="number" step="0.01" min="1.01" value={tg} onChange={(e) => setTg(e.target.value)} />
+      <p className="small" style={{ color: 'var(--mut)', marginTop: 6 }}>Set any target multiplier from 1.01× up to 1000×. If the rolled number meets or beats your target, you win your bet multiplied by that exact rate.</p>
       <button className="p" style={{ ...FULL, marginTop: 12, opacity: busy ? 0.7 : 1 }} onClick={play} disabled={busy}>
         {busy ? 'Playing...' : 'Play'}
       </button>
@@ -163,32 +165,64 @@ export function Mines({ amt }) {
 // ------------------------------------------------------------------ Keno
 export function Keno({ amt }) {
   const [K, setK] = useState([]), [drawn, setDrawn] = useState([]), [busy, setBusy] = useState(false)
+  const [targetHits, setTargetHits] = useState(2)
   const [lastResult, setLastResult] = useState(null)
 
   const tog = (i) => !busy && setK((k) => k.includes(i) ? k.filter((x) => x !== i) : k.length < 10 ? [...k, i] : k)
+
+  // Multiplier function: higher targetHits = higher payout multiplier; lower targetHits = easier to win with lower multiplier
+  const getKenoMult = (h, p, minH) => {
+    if (h < minH) return 0
+    const prob = (comb(p, h) * comb(40 - p, 10 - h)) / comb(40, 10)
+    if (!prob || prob <= 0) return 0
+    const edge = E('keno')
+    const scaling = Math.pow(minH / Math.max(1, p), 0.85)
+    const mult = (edge * 0.82 / prob) * scaling
+    return Math.max(1.15, mult)
+  }
+
   function play() {
     if (busy) return
-    if (!K.length) return toast('Pick numbers')
+    if (!K.length) return toast('Pick at least 1 number')
     const a = place('keno', amt); if (!a) return
     setBusy(true); setDrawn([]); setLastResult(null)
     const d = []; while (d.length < 10) { const x = Math.floor(rnd() * 40); if (!d.includes(x)) d.push(x) }
-    const h = d.filter((x) => K.includes(x)).length, p = K.length, lo = Math.ceil(p / 2), k = p - lo + 1
-    let m = 0; if (h >= lo) m = E('keno') / (((comb(p, h) * comb(40 - p, 10 - h)) / comb(40, 10)) * k)
+    const p = K.length
+    const h = d.filter((x) => K.includes(x)).length
+    const effectiveMinHits = Math.min(targetHits, p)
+    const m = getKenoMult(h, p, effectiveMinHits)
+
     d.forEach((x, j) => setTimeout(() => setDrawn((z) => [...z, x]), j * 160))
     setTimeout(() => {
-      pay('keno', a, a * m)
-      setLastResult({ win: m > 0, net: a * m - a, h, p })
+      const winAmt = a * m
+      pay('keno', a, winAmt)
+      setLastResult({ win: m > 0, net: winAmt - a, h, p })
       if (m > 0) {
-        notify({ type: 'win', title: `Keno - ${h} Hits`, message: `Win ₹${f(a * m)}`, details: `${h}/${p} numbers matched · Payout ${f(m)}×` })
+        notify({ type: 'win', title: `Keno - ${h} Hits`, message: `Win ₹${f(winAmt)}`, details: `${h}/${p} numbers matched (Min ${effectiveMinHits} req) · Payout ${f(m)}×` })
       } else {
-        notify({ type: 'loss', title: `Keno - ${h} Hits`, message: `Lost ₹${f(a)}`, details: `${h}/${p} numbers matched` })
+        notify({ type: 'loss', title: `Keno - ${h} Hits`, message: `Lost ₹${f(a)}`, details: `${h}/${p} numbers matched (Needed ${effectiveMinHits}+ hits to win)` })
       }
       setBusy(false)
     }, 1750)
   }
+
+  const pCount = K.length
+  const maxPossibleHits = Math.max(2, pCount)
+  const currentMin = Math.min(targetHits, maxPossibleHits)
+  const minPossiblePayout = pCount >= 2 ? getKenoMult(currentMin, pCount, currentMin) : 1.5
+  const maxPossiblePayout = pCount >= 2 ? getKenoMult(pCount, pCount, currentMin) : 100
+
   return (
     <>
-      <p className="small">Pick 1 to 10 numbers ({K.length}/10)</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <p className="small">Pick 1 to 10 numbers ({K.length}/10)</p>
+        {pCount >= 2 && (
+          <span className="small" style={{ color: 'var(--ac)', fontWeight: 700 }}>
+            Pays ~{f(minPossiblePayout)}× to ~{f(maxPossiblePayout)}×
+          </span>
+        )}
+      </div>
+
       <div className="grid" style={{ gridTemplateColumns: 'repeat(8,1fr)' }}>
         {Array.from({ length: 40 }, (_, i) => {
           const sel = K.includes(i), dr = drawn.includes(i)
@@ -196,6 +230,30 @@ export function Keno({ amt }) {
           return <button key={i} className={'t' + (dr ? ' pop' : '')} style={{ fontSize: 13, background: bg, outline: dr ? (sel ? '3px solid #ffd54f' : '2px solid #ffffff55') : 'none' }} onClick={() => tog(i)}>{i + 1}</button>
         })}
       </div>
+
+      {/* Selectable Winning Hits Option starting from 2 */}
+      <div style={{ marginTop: 12, marginBottom: 8, background: 'rgba(255,255,255,0.03)', padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <span className="small" style={{ fontWeight: 600 }}>Min blocks/hits to win: <b style={{ color: 'var(--ac)' }}>{currentMin} hits</b></span>
+          <span className="small" style={{ color: 'var(--mut)' }}>Fewer hits = lower mult · More hits = huge mult</span>
+        </div>
+        <div className="chips" style={{ margin: 0, gap: 6, display: 'flex', flexWrap: 'wrap' }}>
+          {Array.from({ length: Math.min(9, Math.max(3, maxPossibleHits - 1)) }, (_, i) => i + 2).map((hits) => (
+            <button
+              key={hits}
+              type="button"
+              disabled={busy || (pCount >= 2 && hits > pCount)}
+              className={currentMin === hits ? 'on' : ''}
+              onClick={() => setTargetHits(hits)}
+              style={{ padding: '4px 10px', fontSize: 12, minWidth: 32 }}
+            >
+              {hits}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <p className="small" style={{ color: 'var(--mut)', margin: '4px 0 10px' }}>Pick 1 to 10 numbers and choose your minimum hit target. Multipliers scale with matching hits, paying up to thousands of times your bet.</p>
       
       <div className="row">
         <button className="p" onClick={play} disabled={busy}>{busy ? 'Drawing...' : 'Draw'}</button>
@@ -259,7 +317,7 @@ function draw(cv, s) {
   const X = (e) => pad + (e / tt) * (W - 2 * pad), Y = (v) => H - pad - ((v - 1) / (top - 1)) * (H - 2 * pad)
   const col = s.st === 'crash' ? '#ff5a5a' : '#2ee67a', ex = X(s.t), ey = Y(s.m)
   const gr = x.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, col + '66'); gr.addColorStop(1, col + '00')
-  const trace = () => { x.beginPath(); x.moveTo(X(0), Y(1)); for (let k = 1; k <= 80; k++) { const e = (s.t * k) / 80; x.lineTo(X(e), Y(Math.exp(G * e))) } }
+  const trace = () => { x.beginPath(); x.moveTo(X(0), Y(1)); for (let k = 1; k <= 80; k++) { const e = (s.t * k) / 80; x.lineTo(X(e), Y(crashMult(e))) } }
   trace(); x.lineTo(ex, H - pad); x.lineTo(X(0), H - pad); x.closePath(); x.fillStyle = gr; x.fill()
   trace(); x.strokeStyle = col; x.lineWidth = 6; x.lineJoin = 'round'; x.shadowColor = col; x.shadowBlur = 18; x.stroke(); x.shadowBlur = 0
   x.beginPath(); x.arc(ex, ey, s.st === 'crash' ? 11 : 8 + Math.sin(Date.now() / 120) * 2, 0, 7)
@@ -347,7 +405,7 @@ export function Crash({ amt }) {
         <i style={{ width: s.st === 'bet' ? 100 - s.p * 100 + '%' : crashed ? 100 - s.np * 100 + '%' : '100%', background: crashed ? 'var(--bad)' : 'var(--ac)' }} />
       </div>
       <div style={{ position: 'relative' }}>
-        <canvas ref={cv} width="800" height="450" />
+        <canvas ref={cv} width="800" height="520" />
         <div className="big" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', fontSize: 56, pointerEvents: 'none' }}>
           {s.st === 'bet'
             ? <><div style={{ fontSize: 72 }}>{s.left}</div><div className="small">Betting open. Place your bet</div></>
@@ -358,7 +416,7 @@ export function Crash({ amt }) {
         <button className="p" style={{ ...FULL, flex: 1, background: co ? '#ffd54f' : canCancel ? 'var(--bad)' : undefined }} onClick={act}>{label}</button>
         {canCancel && <button className="p" style={{ ...FULL, flex: 1, background: 'var(--bad)' }} onClick={cancelBet}>Cancel Bet</button>}
       </div>
-      <p className="small">One shared live round for everyone, derived from the clock and a public seed.</p>
+      <p className="small">Multiplier begins at 1.00× and accelerates smoothly. Cash out anytime before the crash to win your bet multiplied by the live flight rate.</p>
     </>
   )
 }
@@ -547,7 +605,7 @@ export function Color({ amt }) {
           ))}
         </div>
       </div>
-      <p className="small">Number pays 8.8×. If 0 or 5 lands, it counts as red or green at 1.47× and also as violet. Results are determined by the lowest cumulative bet pool in each round across all players.</p>
+      <p className="small">Number pays 8.8×. If 0 or 5 lands, it counts as red or green at 1.47× and also as violet (4.4×). Red and Green pay 1.96×, Big and Small pay 1.96×.</p>
       
       <button className="p" style={{ ...FULL, opacity: (locked || placing) ? 0.6 : 1 }} onClick={bet} disabled={locked || placing}>
         {placing ? 'Placing bet...' : sel ? `Bet ₹${f(amt)} on ${name(sel)}` : 'Choose an option'}

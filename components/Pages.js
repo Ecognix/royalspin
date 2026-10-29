@@ -12,6 +12,11 @@ export function Wallet({ u, me }) {
   const [utr, setUtr] = useState('')
   const [wu, setWu] = useState('')
   const [wa, setWa] = useState('')
+  const [wMethod, setWMethod] = useState('upi')
+  const [bankAcc, setBankAcc] = useState('')
+  const [bankIfsc, setBankIfsc] = useState('')
+  const [bankName, setBankName] = useState('')
+  const [bankHolder, setBankHolder] = useState('')
   const [requests, setRequests] = useState([])
   const [bets, setBets] = useState([])
   const [reqPage, setReqPage] = useState(0)
@@ -75,10 +80,26 @@ export function Wallet({ u, me }) {
 
   async function wsub() {
     const a = +wa
-    if (!wu.trim() || !(a > 0) || a > u.balance) return toast('Check UPI ID and amount')
-    const res = await createRequest('withdraw', a, wu.trim())
+    if (!(a > 0) || a > u.balance) return toast('Check withdrawal amount')
+
+    let withdrawRef = ''
+    if (wMethod === 'upi') {
+      if (!wu.trim() || !wu.includes('@')) return toast('Enter valid UPI ID (e.g. name@bank)')
+      withdrawRef = wu.trim()
+    } else {
+      if (!bankHolder.trim()) return toast('Enter account holder name')
+      if (!bankAcc.trim() || bankAcc.trim().length < 8) return toast('Enter valid bank account number')
+      if (!bankIfsc.trim() || bankIfsc.trim().length < 9) return toast('Enter valid IFSC code (e.g. SBIN0001234)')
+      withdrawRef = `Bank: ${bankName.trim() || 'Bank'} | A/C: ${bankAcc.trim()} | IFSC: ${bankIfsc.trim().toUpperCase()} | Name: ${bankHolder.trim()}`
+    }
+
+    const res = await createRequest('withdraw', a, withdrawRef)
     if (res.error) return toast(res.error)
     setWa('')
+    setWu('')
+    setBankAcc('')
+    setBankIfsc('')
+    setBankHolder('')
     toast('Withdrawal requested: ₹' + f(a) + ' held')
     await refreshUser()
     fetchData()
@@ -117,12 +138,47 @@ export function Wallet({ u, me }) {
         </div>
       ) : (
         <div className="card">
-          <b>Withdraw</b>
-          <label>UPI ID</label>
-          <input placeholder="name@bank" value={wu} onChange={(e) => setWu(e.target.value)} />
-          <label>Amount</label>
+          <b>Withdraw Funds</b>
+          <div style={{ display: 'flex', gap: 8, margin: '10px 0 14px' }}>
+            <button 
+              type="button" 
+              className={wMethod === 'upi' ? 'p' : ''} 
+              style={{ flex: 1, padding: '7px 10px', fontSize: 13 }}
+              onClick={() => setWMethod('upi')}
+            >
+              UPI Transfer
+            </button>
+            <button 
+              type="button" 
+              className={wMethod === 'bank' ? 'p' : ''} 
+              style={{ flex: 1, padding: '7px 10px', fontSize: 13 }}
+              onClick={() => setWMethod('bank')}
+            >
+              Bank Transfer
+            </button>
+          </div>
+
+          {wMethod === 'upi' ? (
+            <>
+              <label>UPI ID</label>
+              <input placeholder="name@bank (e.g. 9876543210@ybl)" value={wu} onChange={(e) => setWu(e.target.value)} />
+            </>
+          ) : (
+            <>
+              <label>Account Holder Name</label>
+              <input placeholder="Name as in bank account" value={bankHolder} onChange={(e) => setBankHolder(e.target.value)} />
+              <label>Bank Name (Optional)</label>
+              <input placeholder="e.g. SBI, HDFC, ICICI" value={bankName} onChange={(e) => setBankName(e.target.value)} />
+              <label>Account Number</label>
+              <input placeholder="Enter bank account number" value={bankAcc} onChange={(e) => setBankAcc(e.target.value)} />
+              <label>IFSC Code</label>
+              <input placeholder="e.g. SBIN0001234" value={bankIfsc} onChange={(e) => setBankIfsc(e.target.value)} style={{ textTransform: 'uppercase' }} />
+            </>
+          )}
+
+          <label style={{ marginTop: 8 }}>Amount (₹)</label>
           <input type="number" value={wa} onChange={(e) => setWa(e.target.value)} placeholder="Enter withdrawal amount" />
-          <button className="p" style={{ width: '100%', marginTop: 12 }} onClick={wsub}>Request withdrawal</button>
+          <button className="p" style={{ width: '100%', marginTop: 14 }} onClick={wsub}>Request Withdrawal</button>
         </div>
       )}
 
