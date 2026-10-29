@@ -4,7 +4,7 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' })
 
 export const metadata = { title: 'Royal Spin', description: 'Royal Spin Online Gaming' }
-export const viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover' }
+export const viewport = { width: 'device-width', initialScale: 1, maximumScale: 1, userScalable: false, viewportFit: 'cover' }
 
 export default function RootLayout({ children }) {
   return (

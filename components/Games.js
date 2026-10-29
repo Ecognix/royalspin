@@ -40,11 +40,7 @@ export function Dice({ amt }) {
   return (
     <>
       <div className="big" style={{ color }}>{shown}</div>
-      {lastResult && (
-        <div style={{ textAlign: 'center', padding: '8px 0', fontWeight: 700, fontSize: 18, color: lastResult.w ? 'var(--ac)' : 'var(--bad)' }}>
-          {lastResult.w ? `✓ WIN  +₹${f(lastResult.win - lastResult.a)}` : `✗ LOSS  -₹${f(lastResult.a)}`}
-        </div>
-      )}
+      
       <div className="dbar" style={{ background: `linear-gradient(90deg,${over ? '#ff5a5a' : '#2ee67a'} ${t}%,${over ? '#2ee67a' : '#ff5a5a'} ${t}%)` }}>
         <div className="mk" style={{ left: (res ? res.x : 50) + '%', opacity: res ? 1 : 0 }}>{res ? f(res.x) : 0}</div>
       </div>
@@ -92,11 +88,7 @@ export function Limbo({ amt }) {
   return (
     <>
       <div className="big" style={{ color: col }}>{v == null ? '—' : f(v) + '×'}</div>
-      {lastResult && (
-        <div style={{ textAlign: 'center', padding: '8px 0', fontWeight: 700, fontSize: 18, color: lastResult.w ? 'var(--ac)' : 'var(--bad)' }}>
-          {lastResult.w ? `✓ WIN  +₹${f(lastResult.win - lastResult.a)}` : `✗ LOSS  -₹${f(lastResult.a)}`}
-        </div>
-      )}
+      
       <label>Target multiplier</label>
       <input type="number" step="0.01" min="1.01" value={tg} onChange={(e) => setTg(e.target.value)} />
       <button className="p" style={{ ...FULL, marginTop: 12, opacity: busy ? 0.7 : 1 }} onClick={play} disabled={busy}>
@@ -204,11 +196,7 @@ export function Keno({ amt }) {
           return <button key={i} className={'t' + (dr ? ' pop' : '')} style={{ fontSize: 13, background: bg, outline: dr ? (sel ? '3px solid #ffd54f' : '2px solid #ffffff55') : 'none' }} onClick={() => tog(i)}>{i + 1}</button>
         })}
       </div>
-      {lastResult && (
-        <div style={{ textAlign: 'center', padding: '8px 0', fontWeight: 700, fontSize: 16, color: lastResult.win ? 'var(--ac)' : 'var(--bad)' }}>
-          {lastResult.win ? `✓ WIN  +₹${f(lastResult.net)}  (${lastResult.h}/${lastResult.p} hits)` : `✗ LOSS  (${lastResult.h}/${lastResult.p} hits)`}
-        </div>
-      )}
+      
       <div className="row">
         <button className="p" onClick={play} disabled={busy}>{busy ? 'Drawing...' : 'Draw'}</button>
         <button onClick={() => { setK([]); setDrawn([]); setLastResult(null) }} disabled={busy}>Clear</button>
@@ -251,11 +239,7 @@ export function Flip({ amt }) {
       <div className="chips">
         {['Heads', 'Tails'].map((s) => <button key={s} className={side === s ? 'on' : ''} onClick={() => setSide(s)}>{s}</button>)}
       </div>
-      {lastResult && (
-        <div style={{ textAlign: 'center', padding: '8px 0', fontWeight: 700, fontSize: 18, color: lastResult.w ? 'var(--ac)' : 'var(--bad)' }}>
-          {lastResult.r} — {lastResult.w ? `✓ WIN  +₹${f(lastResult.win - lastResult.a)}` : `✗ LOSS  -₹${f(lastResult.a)}`}
-        </div>
-      )}
+      
       <p className="small">Pays {f(2 * E('flip'))}×</p>
       <button className="p" style={{ ...FULL, opacity: busy ? 0.7 : 1 }} onClick={flip} disabled={busy}>
         {busy ? 'Flipping...' : 'Flip'}
@@ -355,7 +339,7 @@ export function Color({ amt }) {
   const [now, setNow] = useState(() => Date.now()), [sel, setSel] = useState(null)
   const [myBets, setMyBets] = useState([])
   const [placing, setPlacing] = useState(false)
-  const [placedBanner, setPlacedBanner] = useState(null)
+  
   const [, setRndTick] = useState(0)
   useEffect(() => { const iv = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(iv) }, [])
   const id = Math.floor(now / PERIOD), left = Math.ceil(((id + 1) * PERIOD - now) / 1000), locked = left * 1000 <= LOCK
@@ -452,7 +436,7 @@ export function Color({ amt }) {
 
     // Clear selection so the button and buttons reset cleanly
     setSel(null)
-    setPlacedBanner({ msg: '✓ Bet placed: ₹' + f(a) + ' on ' + placedOption, period: id })
+    
 
     // Insert into color_bets
     try {
@@ -473,7 +457,7 @@ export function Color({ amt }) {
 
     setPlacing(false)
     notify({ type: 'bet', title: 'Color Trading', message: 'Bet ₹' + f(a) + ' placed on ' + placedOption })
-    toast('✓ Bet placed: ₹' + f(a) + ' on ' + placedOption)
+    
   }
   const name = (b) => { if (!b) return ''; if (b.type === 'num') return 'Number ' + b.val; const s = String(b.val || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
   return (
@@ -507,11 +491,7 @@ export function Color({ amt }) {
         </div>
       </div>
       <p className="small">Number pays 8.8×. If 0 or 5 lands, it counts as red or green at 1.47× and also as violet. Results are determined by the lowest cumulative bet pool in each round across all players.</p>
-      {placedBanner && placedBanner.period === id && (
-        <div style={{ textAlign: 'center', padding: '10px 14px', background: 'rgba(46,230,122,0.15)', border: '1px solid var(--ac)', borderRadius: 8, color: 'var(--ac)', fontWeight: 700, margin: '10px 0' }}>
-          {placedBanner.msg}
-        </div>
-      )}
+      
       <button className="p" style={{ ...FULL, opacity: (locked || placing) ? 0.6 : 1 }} onClick={bet} disabled={locked || placing}>
         {placing ? 'Placing bet...' : sel ? `Bet ₹${f(amt)} on ${name(sel)}` : 'Choose an option'}
       </button>

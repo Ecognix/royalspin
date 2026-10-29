@@ -236,11 +236,7 @@ function NotificationCard({ notif, onDismiss }) {
 
             height: 18,
 
-            borderRadius: '50%',
-
-            border: 'none',
-
-            background: 'var(--c2)',
+            border: 'none', background: 'transparent',
 
             color: 'var(--mut)',
 
@@ -384,11 +380,7 @@ function NotificationCard({ notif, onDismiss }) {
 
           height: 18,
 
-          borderRadius: '50%',
-
-          border: 'none',
-
-          background: 'var(--c2)',
+          border: 'none', background: 'transparent',
 
           color: 'var(--mut)',
 
@@ -688,9 +680,14 @@ function Main() {
 
         <div className="row" style={{ flex: 'none', gap: 10 }}>
 
-          <span className="bal" style={{ cursor: 'pointer' }} onClick={() => go('wallet')}>{u.hide_balance ? '••••' : '₹' + f(u.balance)}</span>
-
-          <button className="p" style={{ padding: '8px 12px' }} onClick={() => go('wallet')}>+</button>
+          <div style={{ display: 'inline-flex', alignItems: 'stretch', background: 'var(--bg)', borderRadius: 10, overflow: 'hidden' }}>
+            <span className="bal" style={{ cursor: 'pointer', background: 'transparent', padding: '6px 12px', display: 'flex', alignItems: 'center' }} onClick={() => go('wallet')}>
+              {u.hide_balance ? '••••' : '₹' + f(u.balance)}
+            </span>
+            <button className="p" style={{ padding: '0 11px', borderRadius: 0, border: 'none', fontSize: 17, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} onClick={() => go('wallet')}>
+              +
+            </button>
+          </div>
 
           <div className="menu" ref={menuRef}>
 

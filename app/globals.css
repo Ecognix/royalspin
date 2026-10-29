@@ -1,3 +1,18 @@
+
+/* Hide scrollbars and prevent mobile zoom issues */
+html, body {
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
 :root{--bg:#0b1219;--c1:#14232e;--c2:#1c3140;--tx:#e9f1f6;--mut:#8ba2b1;--ac:#2ee67a;--bad:#ff5a5a;--ln:#2a4252}
 *{box-sizing:border-box}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
