@@ -129,7 +129,7 @@ export function Wallet({ u, me }) {
       {tab === 'd' ? (
         <div className="card">
           <b>UPI Deposit</b>
-          <p className="small">Approved deposits receive ₹500 extra in your wallet. Wager 2× your deposit before withdrawing.</p>
+          <p className="small">Approved deposits receive an extra 50% in your wallet. Wager 2× your deposit before withdrawing.</p>
           <label>Amount</label>
           <input type="number" value={dq} onChange={(e) => setDq(e.target.value)} />
           <div style={{ textAlign: 'center', margin: '14px 0' }}>

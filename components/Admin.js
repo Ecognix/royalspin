@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import {
   useDB, adminLogin, toast, f, addtx, supabase, updateConfig,
-  DEPOSIT_APPROVAL_BONUS, DEPOSIT_WAGER_MULTIPLIER, REFERRAL_REWARD_PERCENT
+  DEPOSIT_APPROVAL_BONUS_PERCENT, DEPOSIT_WAGER_MULTIPLIER, REFERRAL_REWARD_PERCENT
 } from '../lib/supabase-db'
 import { GAMES } from './meta'
 import { Notifications } from './App'
@@ -800,7 +800,8 @@ function Panel({ onOut }) {
 
           const balance = Number(latestUser.balance || 0)
           const wagerRemaining = Number(latestUser.bonus_needed || 0)
-          const credit = isDeposit ? reqAmount + DEPOSIT_APPROVAL_BONUS : reqAmount
+          const depositBonus = Number((reqAmount * DEPOSIT_APPROVAL_BONUS_PERCENT / 100).toFixed(2))
+          const credit = isDeposit ? reqAmount + depositBonus : reqAmount
           const nextBalance = balance + credit
           const updates = {
             balance: nextBalance,
@@ -843,18 +844,19 @@ function Panel({ onOut }) {
 
       let followUpWarning = ''
       if (isDeposit && ok) {
+        const depositBonus = Number((reqAmount * DEPOSIT_APPROVAL_BONUS_PERCENT / 100).toFixed(2))
         const { error: transactionError } = await supabase.from('transactions').insert([
           {
             user_id: userId,
             type: 'Deposit',
             amount: reqAmount,
-            balance_after: updatedBalance - DEPOSIT_APPROVAL_BONUS,
+            balance_after: updatedBalance - depositBonus,
             details: { utr: r.upi_id || r.utr, request_id: id }
           },
           {
             user_id: userId,
             type: 'Deposit reward',
-            amount: DEPOSIT_APPROVAL_BONUS,
+            amount: depositBonus,
             balance_after: updatedBalance,
             details: { request_id: id }
           }
@@ -953,7 +955,8 @@ function Panel({ onOut }) {
       }
 
       if (isDeposit && ok) {
-        toast(followUpWarning || ('Deposit of ₹' + f(reqAmount) + ' approved; ₹' + f(reqAmount + DEPOSIT_APPROVAL_BONUS) + ' credited.'))
+        const depositBonus = Number((reqAmount * DEPOSIT_APPROVAL_BONUS_PERCENT / 100).toFixed(2))
+        toast(followUpWarning || ('Deposit of ₹' + f(reqAmount) + ' approved; ₹' + f(reqAmount + depositBonus) + ' credited.'))
       } else if (isWithdraw && !ok) {
         toast(followUpWarning || ('Withdrawal rejected & ₹' + f(reqAmount) + ' refunded'))
       } else if (isWithdraw && ok) {
@@ -1533,7 +1536,7 @@ function Panel({ onOut }) {
           {at === 'bonus' && (
             <>
               <b>Player Rewards</b>
-              <p className="small">Bonus balance stays at ₹0. A fixed ₹{f(DEPOSIT_APPROVAL_BONUS)} is credited to the wallet for every approved deposit.</p>
+              <p className="small">Bonus balance stays at ₹0. An extra {DEPOSIT_APPROVAL_BONUS_PERCENT}% of each deposit is credited to the wallet on approval.</p>
               <p className="small">Players must wager {DEPOSIT_WAGER_MULTIPLIER}× their deposit amount before withdrawals are available.</p>
               <p className="small">Referrers earn {REFERRAL_REWARD_PERCENT}% of each referred player's approved deposit.</p>
             </>

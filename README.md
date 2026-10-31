@@ -44,7 +44,7 @@ Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.loca
 ## Deposit and referral rules
 For an existing Supabase database, run `referrals_and_deposit_rules_migration.sql` in the
 Supabase SQL Editor before deploying the referral signup flow. New databases should use
-`supabase-schema.sql`. Each approved deposit credits the deposit amount plus ₹500 to the
-wallet and requires wagering twice the deposit amount before withdrawal. No new deposit or
-welcome bonus is added to the bonus balance. Referral links award the referring player 5%
-of each referred player's approved deposit.
+`supabase-schema.sql`. Each approved deposit credits the deposit amount plus a 50% deposit
+bonus to the wallet and requires wagering twice the deposit amount before withdrawal. No
+new deposit or welcome bonus is added to the bonus balance. Referral links award the
+referring player 5% of each referred player's approved deposit.
