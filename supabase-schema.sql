@@ -11,6 +11,7 @@ CREATE TABLE users (
   username VARCHAR(50) UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   name VARCHAR(100),
+  referred_by UUID REFERENCES users(id) ON DELETE SET NULL,
   balance DECIMAL(15,2) DEFAULT 0,
   vault_balance DECIMAL(15,2) DEFAULT 0,
   bonus_balance DECIMAL(15,2) DEFAULT 0,
@@ -71,9 +72,9 @@ CREATE TABLE game_config (
   min_bet DECIMAL(15,2) DEFAULT 1,
   max_bet DECIMAL(15,2) DEFAULT 100000,
   upi_id VARCHAR(100) DEFAULT '8812862976@ybl',
-  welcome_bonus DECIMAL(15,2) DEFAULT 100,
+  welcome_bonus DECIMAL(15,2) DEFAULT 0,
   min_deposit DECIMAL(15,2) DEFAULT 50,
-  wager_requirement INT DEFAULT 3,
+  wager_requirement INT DEFAULT 2,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -118,8 +119,21 @@ CREATE INDEX idx_bets_user_id ON bets(user_id);
 CREATE INDEX idx_bets_created_at ON bets(created_at DESC);
 CREATE INDEX idx_transactions_user_id ON transactions(user_id);
 CREATE INDEX idx_requests_user_id ON requests(user_id);
+CREATE INDEX idx_users_referred_by ON users(referred_by);
 CREATE INDEX idx_color_bets_user_period ON color_bets(user_id, period_id);
 CREATE INDEX idx_crash_bets_user_round ON crash_bets(user_id, round_id);
+
+-- Public referral validation exposes only the non-admin referrer's UUID.
+CREATE OR REPLACE FUNCTION public.get_referrer_id(referral_code UUID)
+RETURNS UUID
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT id FROM public.users WHERE id = referral_code AND is_admin = FALSE
+$$;
+GRANT EXECUTE ON FUNCTION public.get_referrer_id(UUID) TO anon, authenticated;
 
 -- RLS Policies
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;

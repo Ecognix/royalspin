@@ -37,9 +37,14 @@ Color Trading: 30s periods, last 5s locked. Green/Red 1.96x, Violet 4.4x, number
 Big (5-9) / Small (0-4) 1.96x. 0 and 5 count as red/green at 1.47x and also as violet.
 Admin controls house edge, limits and on/off per game, equally for all players.
 
-## Connect Supabase later
+## Supabase setup
 Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local`
-(see `.env.example`). Replace `db()`, `commit()`, the signup/login code in
-`components/App.js`, and the admin login in `components/Admin.js` with supabase-js calls.
-Right now all data is in the browser's localStorage, so players and admin only share data
-inside one browser. Real separation needs the backend.
+(see `.env.example`) and create the database tables using `supabase-schema.sql`.
+
+## Deposit and referral rules
+For an existing Supabase database, run `referrals_and_deposit_rules_migration.sql` in the
+Supabase SQL Editor before deploying the referral signup flow. New databases should use
+`supabase-schema.sql`. Each approved deposit credits the deposit amount plus ₹500 to the
+wallet and requires wagering twice the deposit amount before withdrawal. No new deposit or
+welcome bonus is added to the bonus balance. Referral links award the referring player 5%
+of each referred player's approved deposit.

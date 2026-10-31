@@ -141,13 +141,13 @@ import { GAMES, ICON } from './meta'
 
 import { Dice, Limbo, Mines, Keno, Flip, Crash, Color } from './Games'
 
-import { Wallet, Vault, Wager, Bonus, Profile, Settings } from './Pages'
+import { Wallet, Vault, Wager, Bonus, Referral, Profile, Settings } from './Pages'
 
 
 
 const COMP = { dice: Dice, limbo: Limbo, mines: Mines, keno: Keno, flip: Flip, crash: Crash, color: Color }
 
-const MENU = [['home', 'Games'], ['wallet', 'Wallet'], ['vault', 'Vault'], ['wager', 'Wager'], ['bonus', 'Bonus'], ['profile', 'Profile'], ['settings', 'Settings']]
+const MENU = [['home', 'Games'], ['wallet', 'Wallet'], ['vault', 'Vault'], ['wager', 'Wager'], ['bonus', 'Bonus'], ['referral', 'Refer & Earn'], ['profile', 'Profile'], ['settings', 'Settings']]
 
 
 
@@ -607,6 +607,10 @@ function Auth({ onIn }) {
 
   const [un, setUn] = useState('')
 
+  const [referralCode] = useState(() => (
+    typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('ref') || ''
+  ))
+
   const [loading, setLoading] = useState(false)
 
 
@@ -631,7 +635,7 @@ function Auth({ onIn }) {
 
         
 
-        const res = await signup(ph, pw, un || undefined)
+        const res = await signup(ph, pw, un || undefined, referralCode || undefined)
 
         if (res.error) return toast(res.error)
 
@@ -682,6 +686,8 @@ function Auth({ onIn }) {
       <input type="password" placeholder="min 6 characters" value={pw} onChange={(e) => setPw(e.target.value)} />
 
       {m === 'signup' && <>
+
+        {referralCode && <p className="small">Referral link applied.</p>}
 
         <label>Username (optional)</label>
 
@@ -934,6 +940,8 @@ function Main() {
 
         {view === 'bonus' && <Bonus u={u} />}
 
+        {view === 'referral' && <Referral u={u} />}
+
         {view === 'profile' && <Profile u={u} me={me} />}
 
         {view === 'settings' && <Settings u={u} onLogout={logout} />}
@@ -947,4 +955,3 @@ function Main() {
   )
 
 }
-

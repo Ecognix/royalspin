@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { 
   db, toast, f, createRequest, refreshUser, changePassword,
-  supabase
+  supabase, REFERRAL_REWARD_PERCENT
 } from '../lib/supabase-db'
 
 export function Wallet({ u, me }) {
@@ -80,6 +80,9 @@ export function Wallet({ u, me }) {
 
   async function wsub() {
     const a = +wa
+    if (Number(u.bonus_needed || 0) > 0) {
+      return toast('Wager ₹' + f(u.bonus_needed) + ' more before withdrawing')
+    }
     if (!(a > 0) || a > u.balance) return toast('Check withdrawal amount')
 
     let withdrawRef = ''
@@ -126,6 +129,7 @@ export function Wallet({ u, me }) {
       {tab === 'd' ? (
         <div className="card">
           <b>UPI Deposit</b>
+          <p className="small">Approved deposits receive ₹500 extra in your wallet. Wager 2× your deposit before withdrawing.</p>
           <label>Amount</label>
           <input type="number" value={dq} onChange={(e) => setDq(e.target.value)} />
           <div style={{ textAlign: 'center', margin: '14px 0' }}>
@@ -139,6 +143,11 @@ export function Wallet({ u, me }) {
       ) : (
         <div className="card">
           <b>Withdraw Funds</b>
+          {Number(u.bonus_needed || 0) > 0 && (
+            <p className="small" style={{ color: '#f59e0b' }}>
+              Wager ₹{f(u.bonus_needed)} more before withdrawals are available.
+            </p>
+          )}
           <div style={{ display: 'flex', gap: 8, margin: '10px 0 14px' }}>
             <button 
               type="button" 
@@ -178,7 +187,14 @@ export function Wallet({ u, me }) {
 
           <label style={{ marginTop: 8 }}>Amount (₹)</label>
           <input type="number" value={wa} onChange={(e) => setWa(e.target.value)} placeholder="Enter withdrawal amount" />
-          <button className="p" style={{ width: '100%', marginTop: 14 }} onClick={wsub}>Request Withdrawal</button>
+          <button
+            className="p"
+            style={{ width: '100%', marginTop: 14 }}
+            onClick={wsub}
+            disabled={Number(u.bonus_needed || 0) > 0}
+          >
+            Request Withdrawal
+          </button>
         </div>
       )}
 
@@ -360,7 +376,7 @@ export function Wager({ u, me }) {
   return (
     <div className="card"><b>Wager Requirement</b>
       <div className="big">₹{f(u.bonus_needed || 0)}</div>
-      <p className="small">Total amount you need to bet before bonus money can be withdrawn.</p>
+      <p className="small">Amount you still need to wager before withdrawals are available.</p>
       <div className="bar" style={{ margin: '14px 0' }}>
         <i style={{ width: Math.min(100, ((u.total_wagered || 0) / Math.max(1, (u.total_wagered || 0) + (u.bonus_needed || 0))) * 100) + '%' }} />
       </div>
@@ -373,7 +389,77 @@ export function Bonus({ u }) {
   return (
     <div className="card"><b>Bonus Balance</b>
       <div className="big">₹{f(u.bonus_balance || 0)}</div>
-      <p className="small">Bonus funds available for play. Subject to wagering requirements.</p>
+      <p className="small">No deposit or welcome bonus is added to this balance.</p>
+    </div>
+  )
+}
+
+export function Referral({ u }) {
+  const [referralLink, setReferralLink] = useState('')
+  const [referralCount, setReferralCount] = useState(0)
+  const [earnings, setEarnings] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!u?.id) return
+    setReferralLink(`${window.location.origin}/?ref=${encodeURIComponent(u.id)}`)
+
+    let active = true
+    async function loadReferralEarnings() {
+      setLoading(true)
+      setError('')
+      const { data, error: queryError } = await supabase
+        .from('transactions')
+        .select('amount,details')
+        .eq('user_id', u.id)
+        .eq('type', 'Referral reward')
+      if (!active) return
+      if (queryError) {
+        console.error('Referral earnings load error:', queryError)
+        setError('Could not load referral earnings')
+        setLoading(false)
+        return
+      }
+
+      const referredPlayers = new Set((data || []).map(row => row.details?.referred_user_id).filter(Boolean))
+      setReferralCount(referredPlayers.size)
+      setEarnings((data || []).reduce((total, row) => total + Number(row.amount || 0), 0))
+      setLoading(false)
+    }
+    loadReferralEarnings()
+
+    return () => { active = false }
+  }, [u?.id])
+
+  async function copyReferralLink() {
+    try {
+      await navigator.clipboard.writeText(referralLink)
+      toast('Referral link copied')
+    } catch (copyError) {
+      console.error('Referral link copy error:', copyError)
+      toast('Could not copy the link; select and copy it manually')
+    }
+  }
+
+  return (
+    <div className="card">
+      <b>Refer &amp; Earn</b>
+      <p className="small">Earn {REFERRAL_REWARD_PERCENT}% of every approved deposit made by a player who joins using your link.</p>
+      <label>Your referral link</label>
+      <input readOnly value={referralLink} onFocus={event => event.target.select()} />
+      <button className="p" style={{ width: '100%', marginTop: 10 }} onClick={copyReferralLink} disabled={!referralLink}>
+        Copy referral link
+      </button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
+        <span>Players who deposited</span>
+        <b>{loading ? '…' : referralCount}</b>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
+        <span>Referral earnings</span>
+        <b>{loading ? '…' : `₹${f(earnings)}`}</b>
+      </div>
+      {error && <p className="small" style={{ color: 'var(--bad)' }}>{error}</p>}
     </div>
   )
 }

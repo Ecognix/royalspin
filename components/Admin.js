@@ -1,7 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useDB, adminLogin, toast, f, addtx, supabase, updateConfig } from '../lib/supabase-db'
+import {
+  useDB, adminLogin, toast, f, addtx, supabase, updateConfig,
+  DEPOSIT_APPROVAL_BONUS, DEPOSIT_WAGER_MULTIPLIER, REFERRAL_REWARD_PERCENT
+} from '../lib/supabase-db'
 import { GAMES } from './meta'
 import { Notifications } from './App'
 import { colorResult, ballClass, cpOf, PERIOD, cstate, hs, KSEED } from '../lib/fair'
@@ -631,12 +634,13 @@ function Panel({ onOut }) {
   const [depFilter, setDepFilter] = useState('all')
   const [withFilter, setWithFilter] = useState('all')
   const [openReqs, setOpenReqs] = useState({})
+  const [processingRequests, setProcessingRequests] = useState({})
 
   // Local config state
   const [c, setC] = useState(() => D.cfg || {
     edge: { dice: 1, limbo: 1, mines: 1, keno: 10, flip: 2, crash: 1, color: 5 },
     on: { dice: 1, limbo: 1, mines: 1, keno: 1, flip: 1, crash: 1, color: 1 },
-    min: 1, max: 100000, upi: '8812862976@ybl', welcome: 100, dep: 50, wr: 3
+    min: 1, max: 100000, upi: '8812862976@ybl', welcome: 0, dep: 50, wr: 2
   })
 
   useEffect(() => {
@@ -717,85 +721,242 @@ function Panel({ onOut }) {
 
   // Approve / Reject requests
   async function rq(id, ok) {
-    const r = reqsData.find((x) => x.id === id)
-    if (!r) return
+    if (processingRequests[id]) return
+    setProcessingRequests(prev => ({ ...prev, [id]: true }))
 
-    const userObj = r.users || usersList.find(x => x.id === r.user_id) || usersData[r.users?.phone]
-    const userId = r.user_id || userObj?.id
-    if (!userId) {
-      return toast('User not found for this request')
-    }
-
-    const newStatus = ok ? 'approved' : 'rejected'
-    const { error: reqErr } = await supabase
-      .from('requests')
-      .update({ status: newStatus, updated_at: new Date().toISOString() })
-      .eq('id', id)
-
-    if (reqErr) return toast('Failed to update request status')
-
-    const isDeposit = String(r.type || '').toLowerCase() === 'deposit'
-    const isWithdraw = String(r.type || '').toLowerCase() === 'withdraw'
-    const reqAmount = Number(r.amount || 0)
-
-    // Fetch fresh user record from Supabase
-    const { data: freshUser } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle()
-
-    const currentBal = freshUser ? Number(freshUser.balance || 0) : Number(userObj?.balance || 0)
-
-    if (isDeposit && ok) {
-      const newBal = currentBal + reqAmount
-      await supabase.from('users').update({ 
-        balance: newBal,
-        updated_at: new Date().toISOString() 
-      }).eq('id', userId)
-
-      await supabase.from('transactions').insert({ 
-        user_id: userId, 
-        type: 'Deposit', 
-        amount: reqAmount, 
-        balance_after: newBal, 
-        details: { utr: r.upi_id || r.utr } 
-      })
-
-      const depBonusPercent = Number(c.dep || 0)
-      if (depBonusPercent > 0) {
-        const bonus = (reqAmount * depBonusPercent) / 100
-        const curBonus = Number(freshUser?.bonus_balance || 0)
-        const curNeed = Number(freshUser?.bonus_needed || 0)
-        await supabase.from('users').update({ 
-          bonus_balance: curBonus + bonus,
-          bonus_needed: curNeed + bonus * Number(c.wr || 3)
-        }).eq('id', userId)
+    try {
+      const r = reqsData.find((x) => x.id === id)
+      if (!r) return
+      if (String(r.status || '').toLowerCase() !== 'pending') {
+        toast('This request has already been processed')
+        return
       }
-      toast('Deposit of ₹' + f(reqAmount) + ' approved and credited!')
-    } else if (isWithdraw && !ok) {
-      // Refund balance on rejected withdrawal
-      const newBal = currentBal + reqAmount
-      await supabase.from('users').update({ 
-        balance: newBal,
-        updated_at: new Date().toISOString() 
-      }).eq('id', userId)
 
-      await supabase.from('transactions').insert({ 
-        user_id: userId, 
-        type: 'Withdraw refunded', 
-        amount: reqAmount, 
-        balance_after: newBal, 
-        details: { reason: 'Rejected by admin' } 
-      })
-      toast('Withdrawal rejected & ₹' + f(reqAmount) + ' refunded')
-    } else if (isWithdraw && ok) {
-      toast('Withdrawal of ₹' + f(reqAmount) + ' approved')
-    } else if (isDeposit && !ok) {
-      toast('Deposit rejected')
+      const userObj = r.users || usersList.find(x => x.id === r.user_id) || usersData[r.users?.phone]
+      const userId = r.user_id || userObj?.id
+      if (!userId) {
+        toast('User not found for this request')
+        return
+      }
+
+      const isDeposit = String(r.type || '').toLowerCase() === 'deposit'
+      const isWithdraw = String(r.type || '').toLowerCase() === 'withdraw'
+      const reqAmount = Number(r.amount || 0)
+      if ((!isDeposit && !isWithdraw) || !Number.isFinite(reqAmount) || reqAmount <= 0) {
+        toast('Invalid request details')
+        return
+      }
+
+      const { data: freshUser, error: userError } = await supabase
+        .from('users')
+        .select('id,balance,bonus_needed,referred_by')
+        .eq('id', userId)
+        .maybeSingle()
+      if (userError || !freshUser) {
+        toast('Could not load the player account')
+        return
+      }
+
+      const { data: claimedRequest, error: claimError } = await supabase
+        .from('requests')
+        .update({ status: 'processing', updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('status', 'pending')
+        .select('id')
+        .maybeSingle()
+      if (claimError) {
+        console.error('Request claim error:', claimError)
+        toast('Failed to claim this request')
+        return
+      }
+      if (!claimedRequest) {
+        toast('This request is already being processed')
+        return
+      }
+
+      const restorePending = async () => {
+        const { error } = await supabase
+          .from('requests')
+          .update({ status: 'pending', updated_at: new Date().toISOString() })
+          .eq('id', id)
+          .eq('status', 'processing')
+        if (error) console.error('Request status rollback error:', error)
+      }
+
+      let updatedBalance = Number(freshUser.balance || 0)
+      if ((isDeposit && ok) || (isWithdraw && !ok)) {
+        let updated = false
+        for (let attempt = 0; attempt < 3 && !updated; attempt++) {
+          const { data: latestUser, error: latestError } = await supabase
+            .from('users')
+            .select('balance,bonus_needed')
+            .eq('id', userId)
+            .maybeSingle()
+          if (latestError || !latestUser) {
+            await restorePending()
+            toast('Could not load the latest player balance')
+            return
+          }
+
+          const balance = Number(latestUser.balance || 0)
+          const wagerRemaining = Number(latestUser.bonus_needed || 0)
+          const credit = isDeposit ? reqAmount + DEPOSIT_APPROVAL_BONUS : reqAmount
+          const nextBalance = balance + credit
+          const updates = {
+            balance: nextBalance,
+            updated_at: new Date().toISOString()
+          }
+          if (isDeposit) {
+            updates.bonus_needed = wagerRemaining + reqAmount * DEPOSIT_WAGER_MULTIPLIER
+          }
+
+          let balanceQuery = supabase
+            .from('users')
+            .update(updates)
+            .eq('id', userId)
+          balanceQuery = latestUser.balance == null
+            ? balanceQuery.is('balance', null)
+            : balanceQuery.eq('balance', latestUser.balance)
+          balanceQuery = latestUser.bonus_needed == null
+            ? balanceQuery.is('bonus_needed', null)
+            : balanceQuery.eq('bonus_needed', latestUser.bonus_needed)
+          const { data: changedUser, error: balanceError } = await balanceQuery
+            .select('id')
+            .maybeSingle()
+          if (balanceError) {
+            console.error('Request balance update error:', balanceError)
+            toast('Could not confirm the balance update; request left processing. Verify the wallet before retrying.')
+            return
+          }
+          if (changedUser) {
+            updated = true
+            updatedBalance = nextBalance
+          }
+        }
+
+        if (!updated) {
+          await restorePending()
+          toast('Player balance changed repeatedly; please try again')
+          return
+        }
+      }
+
+      let followUpWarning = ''
+      if (isDeposit && ok) {
+        const { error: transactionError } = await supabase.from('transactions').insert([
+          {
+            user_id: userId,
+            type: 'Deposit',
+            amount: reqAmount,
+            balance_after: updatedBalance - DEPOSIT_APPROVAL_BONUS,
+            details: { utr: r.upi_id || r.utr, request_id: id }
+          },
+          {
+            user_id: userId,
+            type: 'Deposit reward',
+            amount: DEPOSIT_APPROVAL_BONUS,
+            balance_after: updatedBalance,
+            details: { request_id: id }
+          }
+        ])
+        if (transactionError) {
+          console.error('Deposit transaction log error:', transactionError)
+          followUpWarning = 'Deposit credited, but its transaction log could not be saved.'
+        }
+
+        if (freshUser.referred_by && freshUser.referred_by !== userId) {
+          const reward = Number((reqAmount * REFERRAL_REWARD_PERCENT / 100).toFixed(2))
+          let referralPaid = false
+          for (let attempt = 0; attempt < 3 && !referralPaid; attempt++) {
+            const { data: referrer, error: referrerError } = await supabase
+              .from('users')
+              .select('balance')
+              .eq('id', freshUser.referred_by)
+              .maybeSingle()
+            if (referrerError || !referrer) {
+              console.error('Referral account lookup error:', referrerError)
+              break
+            }
+
+            const referralBalance = Number(referrer.balance || 0)
+            const nextReferralBalance = referralBalance + reward
+            let referralUpdateQuery = supabase
+              .from('users')
+              .update({ balance: nextReferralBalance, updated_at: new Date().toISOString() })
+              .eq('id', freshUser.referred_by)
+            referralUpdateQuery = referrer.balance == null
+              ? referralUpdateQuery.is('balance', null)
+              : referralUpdateQuery.eq('balance', referrer.balance)
+            const { data: updatedReferrer, error: referralUpdateError } = await referralUpdateQuery
+              .select('id')
+              .maybeSingle()
+            if (referralUpdateError) {
+              console.error('Referral balance update error:', referralUpdateError)
+              break
+            }
+            if (!updatedReferrer) continue
+
+            const { error: referralTransactionError } = await supabase.from('transactions').insert({
+              user_id: freshUser.referred_by,
+              type: 'Referral reward',
+              amount: reward,
+              balance_after: nextReferralBalance,
+              details: { referred_user_id: userId, deposit_request_id: id }
+            })
+            if (referralTransactionError) {
+              console.error('Referral transaction log error:', referralTransactionError)
+              followUpWarning = 'Deposit credited, but the referral reward transaction log failed.'
+            }
+            referralPaid = true
+          }
+          if (!referralPaid) {
+            followUpWarning = 'Deposit credited, but the 5% referral reward could not be paid. Please review it.'
+          }
+        }
+      } else if (isWithdraw && !ok) {
+        const { error: refundLogError } = await supabase.from('transactions').insert({
+          user_id: userId,
+          type: 'Withdraw refunded',
+          amount: reqAmount,
+          balance_after: updatedBalance,
+          details: { reason: 'Rejected by admin', request_id: id }
+        })
+        if (refundLogError) {
+          console.error('Withdrawal refund log error:', refundLogError)
+          followUpWarning = 'Withdrawal refunded, but its transaction log could not be saved.'
+        }
+      }
+
+      const newStatus = ok ? 'approved' : 'rejected'
+      const { data: finalizedRequest, error: statusError } = await supabase
+        .from('requests')
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('status', 'processing')
+        .select('id')
+        .maybeSingle()
+      if (statusError || !finalizedRequest) {
+        console.error('Request final status error:', statusError)
+        toast('Request balance processed, but its final status could not be saved. Please review it.')
+        return
+      }
+
+      if (isDeposit && ok) {
+        toast(followUpWarning || ('Deposit of ₹' + f(reqAmount) + ' approved; ₹' + f(reqAmount + DEPOSIT_APPROVAL_BONUS) + ' credited.'))
+      } else if (isWithdraw && !ok) {
+        toast(followUpWarning || ('Withdrawal rejected & ₹' + f(reqAmount) + ' refunded'))
+      } else if (isWithdraw && ok) {
+        toast('Withdrawal of ₹' + f(reqAmount) + ' approved')
+      } else {
+        toast('Deposit rejected')
+      }
+    } catch (error) {
+      console.error('Request approval error:', error)
+      toast('Request processing failed; check the request status before retrying')
+    } finally {
+      setProcessingRequests(prev => ({ ...prev, [id]: false }))
+      await refreshData()
     }
-
-    await refreshData()
   }
 
   async function adj(phone) {
@@ -862,13 +1023,14 @@ function Panel({ onOut }) {
     const isOpen = !!openReqs[r.id]
     const status = String(r.status || 'pending').toLowerCase()
     const isPending = status === 'pending'
+    const isProcessing = status === 'processing' || !!processingRequests[r.id]
     const isApproved = status === 'approved'
     const userPhone = r.users?.phone || usersList.find(x => x.id === r.user_id)?.phone || 'Unknown'
     const userBal = r.users?.balance ?? usersList.find(x => x.id === r.user_id)?.balance ?? 0
     const userName = r.users?.name || usersList.find(x => x.id === r.user_id)?.name
 
-    const badgeColor = isApproved ? 'var(--ac)' : isPending ? '#f59e0b' : 'var(--bad)'
-    const badgeBg = isApproved ? '#2ee67a22' : isPending ? '#f59e0b22' : '#ff5a5a22'
+    const badgeColor = isApproved ? 'var(--ac)' : isPending || isProcessing ? '#f59e0b' : 'var(--bad)'
+    const badgeBg = isApproved ? '#2ee67a22' : isPending || isProcessing ? '#f59e0b22' : '#ff5a5a22'
 
     return (
       <div key={r.id} style={{ 
@@ -942,6 +1104,7 @@ function Panel({ onOut }) {
                   title="Approve"
                   style={{ padding: '6px 12px', fontSize: 13, background: 'var(--ac)', color: '#000', fontWeight: 800 }} 
                   onClick={(e) => { e.stopPropagation(); rq(r.id, 1) }}
+                  disabled={isProcessing}
                 >
                   ✓
                 </button>
@@ -950,6 +1113,7 @@ function Panel({ onOut }) {
                   title="Reject"
                   style={{ padding: '6px 12px', fontSize: 13, background: 'var(--bad)', fontWeight: 800 }} 
                   onClick={(e) => { e.stopPropagation(); rq(r.id, 0) }}
+                  disabled={isProcessing}
                 >
                   ✕
                 </button>
@@ -1007,6 +1171,7 @@ function Panel({ onOut }) {
                   className="p" 
                   style={{ flex: 1, padding: '8px', background: 'var(--ac)', color: '#000', fontWeight: 700 }}
                   onClick={() => rq(r.id, 1)}
+                  disabled={isProcessing}
                 >
                   ✓ Approve {isDep ? 'Deposit' : 'Withdrawal'}
                 </button>
@@ -1014,6 +1179,7 @@ function Panel({ onOut }) {
                   className="d" 
                   style={{ flex: 1, padding: '8px', background: 'var(--bad)', fontWeight: 700 }}
                   onClick={() => rq(r.id, 0)}
+                  disabled={isProcessing}
                 >
                   ✕ Reject {isDep ? 'Deposit' : 'Withdrawal'}
                 </button>
@@ -1157,7 +1323,7 @@ function Panel({ onOut }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
                 <b>Deposits ({deposits.length})</b>
                 <div className="chips" style={{ margin: 0 }}>
-                  {['all', 'pending', 'approved', 'rejected'].map((st) => (
+                  {['all', 'pending', 'processing', 'approved', 'rejected'].map((st) => (
                     <button 
                       key={st} 
                       className={depFilter === st ? 'on' : ''} 
@@ -1184,7 +1350,7 @@ function Panel({ onOut }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
                 <b>Withdrawals ({withdrawals.length})</b>
                 <div className="chips" style={{ margin: 0 }}>
-                  {['all', 'pending', 'approved', 'rejected'].map((st) => (
+                  {['all', 'pending', 'processing', 'approved', 'rejected'].map((st) => (
                     <button 
                       key={st} 
                       className={withFilter === st ? 'on' : ''} 
@@ -1355,25 +1521,10 @@ function Panel({ onOut }) {
           {/* TAB 7: BONUS CONFIG */}
           {at === 'bonus' && (
             <>
-              <b>Bonus Settings</b>
-              <p className="small">Configure player welcome bonus and deposit bonuses.</p>
-              <label>Welcome Bonus Amount (₹)</label>
-              <input type="number" value={c.welcome ?? 100} onChange={(e) => updateField('welcome', +e.target.value)} />
-
-              <label>Deposit Bonus (%)</label>
-              <input type="number" value={c.dep ?? 50} onChange={(e) => updateField('dep', +e.target.value)} />
-
-              <label>Wagering Requirement Multiple</label>
-              <input type="number" value={c.wr ?? 3} onChange={(e) => updateField('wr', +e.target.value)} />
-
-              <button 
-                className="p" 
-                style={{ width: '100%', marginTop: 14, padding: 12 }} 
-                onClick={saveConfig} 
-                disabled={saving}
-              >
-                {saving ? 'Saving...' : '💾 Save Bonus Configuration'}
-              </button>
+              <b>Player Rewards</b>
+              <p className="small">Bonus balance stays at ₹0. A fixed ₹{f(DEPOSIT_APPROVAL_BONUS)} is credited to the wallet for every approved deposit.</p>
+              <p className="small">Players must wager {DEPOSIT_WAGER_MULTIPLIER}× their deposit amount before withdrawals are available.</p>
+              <p className="small">Referrers earn {REFERRAL_REWARD_PERCENT}% of each referred player's approved deposit.</p>
             </>
           )}
 
