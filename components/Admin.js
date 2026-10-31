@@ -749,7 +749,7 @@ function Panel({ onOut }) {
 
       const { data: freshUser, error: userError } = await supabase
         .from('users')
-        .select('id,balance,bonus_needed,referred_by')
+        .select('id,balance,bonus_needed')
         .eq('id', userId)
         .maybeSingle()
       if (userError || !freshUser) {
@@ -864,14 +864,25 @@ function Panel({ onOut }) {
           followUpWarning = 'Deposit credited, but its transaction log could not be saved.'
         }
 
-        if (freshUser.referred_by && freshUser.referred_by !== userId) {
+        const { data: referralData, error: referralLookupError } = await supabase
+          .from('users')
+          .select('referred_by')
+          .eq('id', userId)
+          .maybeSingle()
+        if (referralLookupError) {
+          console.error('Referral attribution lookup error:', referralLookupError)
+          followUpWarning = 'Deposit credited, but referral attribution could not be checked. Apply the database migration and review this deposit.'
+        }
+
+        const referrerId = referralData?.referred_by
+        if (referrerId && referrerId !== userId) {
           const reward = Number((reqAmount * REFERRAL_REWARD_PERCENT / 100).toFixed(2))
           let referralPaid = false
           for (let attempt = 0; attempt < 3 && !referralPaid; attempt++) {
             const { data: referrer, error: referrerError } = await supabase
               .from('users')
               .select('balance')
-              .eq('id', freshUser.referred_by)
+              .eq('id', referrerId)
               .maybeSingle()
             if (referrerError || !referrer) {
               console.error('Referral account lookup error:', referrerError)
@@ -883,7 +894,7 @@ function Panel({ onOut }) {
             let referralUpdateQuery = supabase
               .from('users')
               .update({ balance: nextReferralBalance, updated_at: new Date().toISOString() })
-              .eq('id', freshUser.referred_by)
+              .eq('id', referrerId)
             referralUpdateQuery = referrer.balance == null
               ? referralUpdateQuery.is('balance', null)
               : referralUpdateQuery.eq('balance', referrer.balance)
@@ -897,7 +908,7 @@ function Panel({ onOut }) {
             if (!updatedReferrer) continue
 
             const { error: referralTransactionError } = await supabase.from('transactions').insert({
-              user_id: freshUser.referred_by,
+              user_id: referrerId,
               type: 'Referral reward',
               amount: reward,
               balance_after: nextReferralBalance,
