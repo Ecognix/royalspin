@@ -4,7 +4,8 @@ import {
   useDB, place, pay, cancelCrashBet, toast, notify, notifySubscribers, f, user, supabase,
   BET_FEE_WAGER_STEP, BET_FEE_AMOUNT
 } from '../lib/supabase-db'
-import { E, rnd, BETW, G, BLK, sched, cstate, cpOf, crashMult, PERIOD, LOCK, colorResult, colorResultCache, computeLowestBetResult, ballClass } from '../lib/fair'
+import { resolveColorPeriod } from '../lib/tick'
+import { E, rnd, BETW, G, BLK, sched, cstate, cpOf, crashMult, PERIOD, LOCK, colorResult, colorResultCache, ballClass } from '../lib/fair'
 
 const FULL = { width: '100%' }
 const comb = (n, k) => { if (k < 0 || k > n) return 0; let r = 1; for (let i = 1; i <= k; i++) r = (r * (n - k + i)) / i; return r }
@@ -108,30 +109,55 @@ const mmul = (m) => { let x = 1; for (let i = 0; i < m.f; i++) x *= (25 - i) / (
 export function Mines({ amt }) {
   const [n, setN] = useState(3), [M, setM] = useState(null), [shake, setShake] = useState(false)
   const ref = useRef(null); ref.current = M
-  // leaving mid-round cashes out gems, or refunds the stake if none were found
-  useEffect(() => () => { const m = ref.current; if (m && m.on) pay('mines', m.a, m.f ? m.a * mmul(m) : m.a) }, [])
+  // Leaving mid-round cashes out gems, or refunds the stake if none were found.
+  useEffect(() => () => {
+    const m = ref.current
+    if (m && m.on) {
+      ref.current = { ...m, on: false }
+      pay('mines', m.a, m.f ? m.a * mmul(m) : m.a)
+    }
+  }, [])
   function start() {
     if (M && M.on) return
     const a = place('mines', amt); if (!a) return
     const s = new Set(); while (s.size < n) s.add(Math.floor(rnd() * 25))
-    setM({ on: true, n, s, a, f: 0, rev: {} })
+    const round = { on: true, n, s, a, f: 0, rev: {} }
+    ref.current = round
+    setM(round)
     notify({ type: 'bet', title: 'Mines Round Started', message: `Bet ₹${f(a)} · ${n} mines` })
   }
   function pick(i) {
     if (!M || !M.on || M.rev[i]) return
     if (M.s.has(i)) {
-      pay('mines', M.a, 0); setM({ ...M, on: false, rev: { ...M.rev, [i]: 'mine' } })
+      const lostRound = { ...M, on: false, rev: { ...M.rev, [i]: 'mine' } }
+      ref.current = lostRound
+      pay('mines', M.a, 0)
+      setM(lostRound)
       setShake(true); setTimeout(() => setShake(false), 500)
       notify({ type: 'loss', title: 'Mines - Hit Mine', message: `Lost ₹${f(M.a)}`, details: `Found ${M.f} gems · Multiplier ${f(mmul(M))}×` })
     } else {
       const m2 = { ...M, f: M.f + 1, rev: { ...M.rev, [i]: 'gem' } }
-      if (m2.f === 25 - M.n) { const w = M.a * mmul(m2); pay('mines', M.a, w); notify({ type: 'win', title: 'Mines - Cleared Board!', message: `Win ₹${f(w)}`, details: `Found all ${25 - M.n} gems · Multiplier ${f(mmul(m2))}×` }); setM({ ...m2, on: false }) }
-      else setM(m2)
+      if (m2.f === 25 - M.n) {
+        const wonRound = { ...m2, on: false }
+        const w = M.a * mmul(m2)
+        ref.current = wonRound
+        pay('mines', M.a, w)
+        notify({ type: 'win', title: 'Mines - Cleared Board!', message: `Win ₹${f(w)}`, details: `Found all ${25 - M.n} gems · Multiplier ${f(mmul(m2))}×` })
+        setM(wonRound)
+      } else {
+        ref.current = m2
+        setM(m2)
+      }
     }
   }
   function cash() {
     if (!M || !M.on || !M.f) return
-    const w = M.a * mmul(M); pay('mines', M.a, w); notify({ type: 'win', title: 'Mines - Cashed Out', message: `Win ₹${f(w)}`, details: `Found ${M.f} gems · Multiplier ${f(mmul(M))}×` }); setM({ ...M, on: false })
+    const cashedRound = { ...M, on: false }
+    const w = M.a * mmul(M)
+    ref.current = cashedRound
+    pay('mines', M.a, w)
+    notify({ type: 'win', title: 'Mines - Cashed Out', message: `Win ₹${f(w)}`, details: `Found ${M.f} gems · Multiplier ${f(mmul(M))}×` })
+    setM(cashedRound)
   }
   const on = M && M.on
   return (
@@ -488,7 +514,7 @@ export function Color({ amt }) {
 
   const mine = myBets.filter((b) => b.id === id)
 
-  // Fetch past period results from canonical color_results table, then fall back to computing
+  // Load only canonical results. Never seed the settlement cache from a partial client-side pool.
   useEffect(() => {
     let cancelled = false
     async function loadPastResults() {
@@ -497,36 +523,21 @@ export function Color({ amt }) {
       if (missing.length === 0) return
 
       try {
-        // 1. Read canonical settled results from color_results table
-        const { data: results } = await supabase
+        const { data: results, error } = await supabase
           .from('color_results')
           .select('period_id, winning_number')
           .in('period_id', missing)
+        if (error) throw error
 
-        const fromDB = {}
-        results?.forEach(r => { fromDB[r.period_id] = Number(r.winning_number) })
-
-        // 2. For periods not yet in color_results, compute from color_bets
-        const stillMissing = missing.filter(p => fromDB[p] === undefined)
-        if (stillMissing.length > 0) {
-          const { data: bets } = await supabase
-            .from('color_bets')
-            .select('period_id, bet_type, bet_value, amount')
-            .in('period_id', stillMissing)
-
-          const byPeriod = {}
-          bets?.forEach(b => {
-            if (!byPeriod[b.period_id]) byPeriod[b.period_id] = []
-            byPeriod[b.period_id].push(b)
-          })
-
-          stillMissing.forEach(p => {
-            fromDB[p] = computeLowestBetResult(p, byPeriod[p] || [])
-          })
-        }
-
+        results?.forEach(r => {
+          const number = Number(r.winning_number)
+          if (Number.isInteger(number) && number >= 0 && number <= 9) {
+            colorResultCache[r.period_id] = number
+          }
+        })
+        const stillMissing = missing.filter(p => colorResultCache[p] === undefined)
+        await Promise.all(stillMissing.map(p => resolveColorPeriod(p)))
         if (cancelled) return
-        Object.assign(colorResultCache, fromDB)
         setRndTick(t => t + 1)
       } catch (e) {
         console.error('Failed to load past color results:', e)
@@ -536,7 +547,7 @@ export function Color({ amt }) {
     return () => { cancelled = true }
   }, [id])
 
-    const last = colorResult(id - 1)
+  const last = colorResult(id - 1)
   const totalPast = Array.from({ length: 100 }, (_, k) => id - 1 - k)
   const past = totalPast.slice(historyPage * 10, (historyPage + 1) * 10)
   const same = (a, b) => a && b && a.type === b.type && a.val === b.val
@@ -546,20 +557,16 @@ export function Color({ amt }) {
     if (locked) return toast('Betting is locked for the last 5 seconds')
     const curUser = user()
     if (!curUser) return toast('Please login first')
+    if (placing) return
+    setPlacing(true)
     const a = place('color', amt)
-    if (!a) return
+    if (!a) {
+      setPlacing(false)
+      return
+    }
 
     const placedOption = name(sel)
     const newBet = { id, type: sel.type, val: sel.val, amt: a }
-    curUser.cbets = curUser.cbets || []
-    curUser.cbets.push(newBet)
-    setMyBets(prev => [...prev.filter(b => b.id === id), newBet])
-
-    // Clear selection so the button and buttons reset cleanly
-    setSel(null)
-    
-
-    // Insert into color_bets
     try {
       const betPayload = {
         period_id: id,
@@ -571,14 +578,24 @@ export function Color({ amt }) {
       }
       if (curUser.id) betPayload.user_id = curUser.id
       const { error: cbErr } = await supabase.from('color_bets').insert(betPayload)
-      if (cbErr) console.error('color_bets insert error:', JSON.stringify(cbErr))
-    } catch (err) {
-      console.error('Failed to insert color_bet:', err)
-    }
+      if (cbErr) throw cbErr
 
-    setPlacing(false)
-    notify({ type: 'bet', title: 'Color Trading', message: 'Bet ₹' + f(a) + ' placed on ' + placedOption })
-    
+      curUser.cbets = curUser.cbets || []
+      curUser.cbets.push(newBet)
+      setMyBets(prev => [...prev.filter(b => b.id === id), newBet])
+      setSel(null)
+      notify({ type: 'bet', title: 'Color Trading', message: 'Bet ₹' + f(a) + ' placed on ' + placedOption })
+    } catch (err) {
+      console.error('Failed to insert color bet:', err)
+      const refund = cancelCrashBet(a, 'color')
+      if (refund) {
+        toast('Bet could not be saved; ₹' + f(refund) + ' was refunded.')
+      } else {
+        toast('Bet could not be saved and the refund failed. Contact support.')
+      }
+    } finally {
+      setPlacing(false)
+    }
   }
   const name = (b) => { if (!b) return ''; if (b.type === 'num') return 'Number ' + b.val; const s = String(b.val || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
   return (
