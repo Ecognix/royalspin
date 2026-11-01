@@ -1,5 +1,5 @@
--- Run in the Supabase SQL Editor. A single server-side random result is persisted
--- per period so all clients settle against the same outcome.
+-- Run in the Supabase SQL Editor. Each period is resolved once from the complete
+-- bet pool, choosing the number with the lowest total payout.
 
 CREATE TABLE IF NOT EXISTS public.color_results (
   period_id BIGINT PRIMARY KEY,
@@ -107,7 +107,20 @@ BEGIN
   INTO v_edge;
   v_edge := LEAST(99, GREATEST(0, v_edge));
 
-  v_result := floor(random() * 10)::INT;
+  SELECT outcome.number
+    INTO v_result
+    FROM generate_series(0, 9) AS outcome(number)
+    ORDER BY COALESCE((
+      SELECT SUM(ROUND(
+        cb.amount * public.color_payout_multiplier(
+          cb.bet_type, cb.bet_value, outcome.number, v_edge
+        ),
+        2
+      ))
+      FROM public.color_bets AS cb
+      WHERE cb.period_id = p_period_id
+    ), 0), random()
+    LIMIT 1;
 
   SELECT COALESCE(SUM(cb.amount), 0),
          COALESCE(SUM(ROUND(

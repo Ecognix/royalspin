@@ -6,9 +6,22 @@ import {
 } from '../lib/supabase-db'
 import { resolveColorPeriod } from '../lib/tick'
 import { E, rnd, BETW, G, BLK, sched, cstate, cpOf, crashMult, PERIOD, LOCK, colorResult, colorResultCache, ballClass } from '../lib/fair'
+import { reserveDemoOutcome, rollbackDemoOutcome } from '../lib/demo-outcomes'
 
 const FULL = { width: '100%' }
 const comb = (n, k) => { if (k < 0 || k > n) return 0; let r = 1; for (let i = 1; i <= k; i++) r = (r * (n - k + i)) / i; return r }
+
+function placeDemoBet(game, amount) {
+  const outcome = reserveDemoOutcome(game)
+  if (!outcome) return null
+
+  const placedAmount = place(game, amount)
+  if (!placedAmount) {
+    rollbackDemoOutcome(outcome)
+    return null
+  }
+  return { amount: placedAmount, outcome }
+}
 
 // ------------------------------------------------------------------ Dice
 export function Dice({ amt }) {
@@ -19,9 +32,13 @@ export function Dice({ amt }) {
   const ch = over ? 100 - t : t, mult = (100 * E('dice')) / ch
   function roll() {
     if (busy) return
-    const a = place('dice', amt); if (!a) return
+    const placed = placeDemoBet('dice', amt); if (!placed) return
+    const { amount: a, outcome } = placed
     setBusy(true); setLastResult(null)
-    const x = rnd() * 100, w = over ? x > t : x < t
+    const x = outcome.won
+      ? over ? t + (100 - t) / 2 : t / 2
+      : over ? t / 2 : t + (100 - t) / 2
+    const w = over ? x > t : x < t
     setRes({ x, w }); let n = 0
     const iv = setInterval(() => {
       setSpin(Math.random() * 100)
@@ -69,9 +86,13 @@ export function Limbo({ amt }) {
 
   function play() {
     if (busy) return
-    const a = place('limbo', amt); if (!a) return
+    const placed = placeDemoBet('limbo', amt); if (!placed) return
+    const { amount: a, outcome } = placed
     setBusy(true); setCol(undefined); setLastResult(null)
-    const t = Math.min(300, Math.max(1.01, +tg)), r = Math.max(1, Math.floor((100 * E('limbo')) / (rnd() || 1e-9)) / 100), w = r >= t
+    const t = Math.min(300, Math.max(1.01, +tg))
+    const randomResult = Math.max(1, Math.floor((100 * E('limbo')) / (rnd() || 1e-9)) / 100)
+    const r = outcome.won ? t : Math.min(t - 0.01, randomResult)
+    const w = r >= t
     const t0 = performance.now(), dur = Math.min(1600, 500 + Math.log10(r) * 600)
     const iv = setInterval(() => {
       const p = Math.min(1, (performance.now() - t0) / dur)
@@ -109,19 +130,29 @@ const mmul = (m) => { let x = 1; for (let i = 0; i < m.f; i++) x *= (25 - i) / (
 export function Mines({ amt }) {
   const [n, setN] = useState(3), [M, setM] = useState(null), [shake, setShake] = useState(false)
   const ref = useRef(null); ref.current = M
+
+  function settleRound(round, naturalReturn) {
+    if (!round || round.settled || ref.current?.settled) return null
+    const winAmount = round.demoWon ? Math.max(naturalReturn, round.a * 1.01) : 0
+    const settledRound = { ...round, on: false, settled: true }
+    ref.current = settledRound
+    pay('mines', round.a, winAmount)
+    return { round: settledRound, winAmount, adjusted: winAmount !== naturalReturn }
+  }
+
   // Leaving mid-round cashes out gems, or refunds the stake if none were found.
   useEffect(() => () => {
     const m = ref.current
     if (m && m.on) {
-      ref.current = { ...m, on: false }
-      pay('mines', m.a, m.f ? m.a * mmul(m) : m.a)
+      settleRound(m, m.f ? m.a * mmul(m) : m.a)
     }
   }, [])
   function start() {
     if (M && M.on) return
-    const a = place('mines', amt); if (!a) return
+    const placed = placeDemoBet('mines', amt); if (!placed) return
+    const { amount: a, outcome } = placed
     const s = new Set(); while (s.size < n) s.add(Math.floor(rnd() * 25))
-    const round = { on: true, n, s, a, f: 0, rev: {} }
+    const round = { on: true, n, s, a, f: 0, rev: {}, demoWon: outcome.won }
     ref.current = round
     setM(round)
     notify({ type: 'bet', title: 'Mines Round Started', message: `Bet ₹${f(a)} · ${n} mines` })
@@ -129,20 +160,32 @@ export function Mines({ amt }) {
   function pick(i) {
     if (!M || !M.on || M.rev[i]) return
     if (M.s.has(i)) {
-      const lostRound = { ...M, on: false, rev: { ...M.rev, [i]: 'mine' } }
+      const settlement = settleRound(M, 0)
+      if (!settlement) return
+      const lostRound = { ...settlement.round, rev: { ...M.rev, [i]: 'mine' } }
       ref.current = lostRound
-      pay('mines', M.a, 0)
       setM(lostRound)
       setShake(true); setTimeout(() => setShake(false), 500)
-      notify({ type: 'loss', title: 'Mines - Hit Mine', message: `Lost ₹${f(M.a)}`, details: `Found ${M.f} gems · Multiplier ${f(mmul(M))}×` })
+      notify({
+        type: settlement.winAmount > M.a ? 'win' : 'loss',
+        title: settlement.winAmount > M.a ? 'Mines - Demo Win' : 'Mines - Hit Mine',
+        message: settlement.winAmount > M.a ? `Win ₹${f(settlement.winAmount)}` : `Lost ₹${f(M.a)}`,
+        details: `Found ${M.f} gems · Multiplier ${f(mmul(M))}×${settlement.adjusted ? ' · Demo outcome schedule applied' : ''}`
+      })
     } else {
       const m2 = { ...M, f: M.f + 1, rev: { ...M.rev, [i]: 'gem' } }
       if (m2.f === 25 - M.n) {
-        const wonRound = { ...m2, on: false }
-        const w = M.a * mmul(m2)
+        const naturalReturn = M.a * mmul(m2)
+        const settlement = settleRound(M, naturalReturn)
+        if (!settlement) return
+        const wonRound = { ...settlement.round, f: m2.f, rev: m2.rev }
         ref.current = wonRound
-        pay('mines', M.a, w)
-        notify({ type: 'win', title: 'Mines - Cleared Board!', message: `Win ₹${f(w)}`, details: `Found all ${25 - M.n} gems · Multiplier ${f(mmul(m2))}×` })
+        notify({
+          type: settlement.winAmount > M.a ? 'win' : 'loss',
+          title: settlement.winAmount > M.a ? 'Mines - Cleared Board!' : 'Mines - Demo Loss',
+          message: settlement.winAmount > M.a ? `Win ₹${f(settlement.winAmount)}` : `Lost ₹${f(M.a)}`,
+          details: `Found all ${25 - M.n} gems · Multiplier ${f(mmul(m2))}×${settlement.adjusted ? ' · Demo outcome schedule applied' : ''}`
+        })
         setM(wonRound)
       } else {
         ref.current = m2
@@ -152,12 +195,16 @@ export function Mines({ amt }) {
   }
   function cash() {
     if (!M || !M.on || !M.f) return
-    const cashedRound = { ...M, on: false }
-    const w = M.a * mmul(M)
-    ref.current = cashedRound
-    pay('mines', M.a, w)
-    notify({ type: 'win', title: 'Mines - Cashed Out', message: `Win ₹${f(w)}`, details: `Found ${M.f} gems · Multiplier ${f(mmul(M))}×` })
-    setM(cashedRound)
+    const naturalReturn = M.a * mmul(M)
+    const settlement = settleRound(M, naturalReturn)
+    if (!settlement) return
+    notify({
+      type: settlement.winAmount > M.a ? 'win' : 'loss',
+      title: settlement.winAmount > M.a ? 'Mines - Cashed Out' : 'Mines - Demo Loss',
+      message: settlement.winAmount > M.a ? `Win ₹${f(settlement.winAmount)}` : `Lost ₹${f(M.a)}`,
+      details: `Found ${M.f} gems · Multiplier ${f(mmul(M))}×${settlement.adjusted ? ' · Demo outcome schedule applied' : ''}`
+    })
+    setM(settlement.round)
   }
   const on = M && M.on
   return (
@@ -212,10 +259,28 @@ export function Keno({ amt }) {
 
   function play() {
     if (busy) return
-    if (!K.length) return toast('Pick at least 1 number (up to 10)')
-    const a = place('keno', amt); if (!a) return
+    if (K.length < 3) return toast('Pick at least 3 numbers (up to 10)')
+    const placed = placeDemoBet('keno', amt); if (!placed) return
+    const { amount: a, outcome } = placed
     setBusy(true); setDrawn([]); setLastResult(null)
-    const d = []; while (d.length < 10) { const x = Math.floor(rnd() * 40); if (!d.includes(x)) d.push(x) }
+    const hitCount = outcome.won
+      ? 3 + Math.floor(rnd() * (Math.min(K.length, 10) - 2))
+      : Math.floor(rnd() * Math.min(K.length, 3))
+    const sample = (items, count) => {
+      const available = [...items]
+      const selected = []
+      while (selected.length < count) {
+        selected.push(available.splice(Math.floor(rnd() * available.length), 1)[0])
+      }
+      return selected
+    }
+    const selectedHits = sample(K, hitCount)
+    const nonSelected = Array.from({ length: 40 }, (_, index) => index).filter(value => !K.includes(value))
+    const d = [...selectedHits, ...sample(nonSelected, 10 - hitCount)]
+    for (let index = d.length - 1; index > 0; index--) {
+      const swapIndex = Math.floor(rnd() * (index + 1))
+      ;[d[index], d[swapIndex]] = [d[swapIndex], d[index]]
+    }
     const p = K.length
     const h = d.filter((x) => K.includes(x)).length
     const m = (h >= 3 && h <= 10) ? KENO_PAYOUTS[h] : h > 10 ? 300.0 : 0
@@ -237,7 +302,7 @@ export function Keno({ amt }) {
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-        <p className="small" style={{ margin: 0 }}>Pick 1 to 10 numbers ({K.length}/10)</p>
+        <p className="small" style={{ margin: 0 }}>Pick 3 to 10 numbers ({K.length}/10)</p>
         <span className="small" style={{ color: 'var(--mut)' }}>10 winning numbers drawn</span>
       </div>
 
@@ -282,7 +347,7 @@ export function Keno({ amt }) {
           ))}
         </div>
         <p className="small" style={{ color: 'var(--mut)', margin: '6px 0 0', fontSize: 11 }}>
-          Matching 3 to 10 numbers pays gradually increasing profit multipliers up to 300×. Hits under 3 do not pay.
+          Matching 3 to 10 numbers pays gradually increasing multipliers up to 300×. At least 3 picks are required.
         </p>
       </div>
       
@@ -301,9 +366,10 @@ export function Flip({ amt }) {
   const scene = useRef(null)
   function flip() {
     if (busy) return
-    const a = place('flip', amt); if (!a) return
+    const placed = placeDemoBet('flip', amt); if (!placed) return
+    const { amount: a, outcome } = placed
     setBusy(true); setLastResult(null)
-    const r = rnd() < 0.5 ? 'Heads' : 'Tails'
+    const r = outcome.won ? side : side === 'Heads' ? 'Tails' : 'Heads'
     setRot(rot - (rot % 360) + 1800 + (r === 'Tails' ? 180 : 0))
     const el = scene.current; el.classList.remove('toss'); void el.offsetWidth; el.classList.add('toss')
     setTimeout(() => {

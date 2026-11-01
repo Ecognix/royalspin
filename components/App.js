@@ -910,6 +910,9 @@ function Main() {
           <div className="card" style={{ marginTop: 10 }}>
 
             <b>{GAMES.find((g) => g[0] === game)[1]}</b><p className="small">House edge {cfg.edge?.[game] || 0}%</p>
+            <p className="small" style={{ padding: '9px 11px', margin: '8px 0', borderRadius: 8, background: '#8b5e0022', border: '1px solid #ffd54f55', color: '#ffe9a8' }}>
+              Play-money demo rules: Dice, Limbo, Mines, Keno, and Coin Flip use per-player groups of 10 bets with 3 wins, occasionally 4, placed at random nonconsecutive positions. Results can override normal game mechanics. Color Trading selects the number with the lowest total payout across all bets in each period. These outcomes are controlled, not random or fair. Sequences are saved in this browser; another browser or device has a separate sequence.
+            </p>
 
                         <label>Bet amount</label>
             <p className="small">₹{BET_FEE_AMOUNT} is deducted for every completed ₹{BET_FEE_WAGER_STEP} of cumulative bets. Partial amounts carry over.</p>
