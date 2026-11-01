@@ -48,3 +48,7 @@ Supabase SQL Editor before deploying the referral signup flow. New databases sho
 bonus to the wallet and requires wagering twice the deposit amount before withdrawal. No
 new deposit or welcome bonus is added to the bonus balance. Referral links award the
 referring player 5% of each referred player's approved deposit.
+
+Run `bet_fee_migration.sql` in the Supabase SQL Editor for an existing database before
+deploying bet fees. Every completed ₹500 of cumulative bet stakes deducts ₹15 from the
+wallet; partial progress carries over between bets.

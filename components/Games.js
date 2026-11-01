@@ -1,6 +1,9 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { useDB, place, pay, cancelCrashBet, toast, notify, notifySubscribers, f, user, supabase } from '../lib/supabase-db'
+import {
+  useDB, place, pay, cancelCrashBet, toast, notify, notifySubscribers, f, user, supabase,
+  BET_FEE_WAGER_STEP, BET_FEE_AMOUNT
+} from '../lib/supabase-db'
 import { E, rnd, BETW, G, BLK, sched, cstate, cpOf, crashMult, PERIOD, LOCK, colorResult, colorResultCache, computeLowestBetResult, ballClass } from '../lib/fair'
 
 const FULL = { width: '100%' }
@@ -385,8 +388,12 @@ export function Crash({ amt }) {
       const refund = P.a
       setCbet(null)
       if (u) delete u.cbet
-      cancelCrashBet(refund)
-      notify({ type: 'bet', title: 'Bet Cancelled', message: `₹${f(refund)} returned to balance` })
+      const totalRefund = cancelCrashBet(refund)
+      notify({
+        type: 'bet',
+        title: 'Bet Cancelled',
+        message: `₹${f(totalRefund)} returned to balance`
+      })
     }
   }
 
@@ -418,7 +425,7 @@ export function Crash({ amt }) {
         <button className="p" style={{ ...FULL, flex: 1, background: co ? '#ffd54f' : canCancel ? 'var(--bad)' : undefined }} onClick={act}>{label}</button>
         {canCancel && <button className="p" style={{ ...FULL, flex: 1, background: 'var(--bad)' }} onClick={cancelBet}>Cancel Bet</button>}
       </div>
-      <p className="small">Multiplier begins at 1.00× and accelerates smoothly. Cash out anytime before the crash to win your bet multiplied by the live flight rate.</p>
+      <p className="small">A ₹{BET_FEE_AMOUNT} fee is charged for each completed ₹{BET_FEE_WAGER_STEP} of cumulative bets. Multiplier begins at 1.00× and accelerates smoothly. Cash out anytime before the crash to win your bet multiplied by the live flight rate.</p>
     </>
   )
 }

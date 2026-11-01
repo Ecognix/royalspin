@@ -131,7 +131,8 @@ import {
 
   createRequest, getAllUsers, getAllBets, getAllRequests,
 
-  updateRequest, updateUser, updateConfig, isAdminPhone, supabase
+  updateRequest, updateUser, updateConfig, isAdminPhone, supabase,
+  BET_FEE_WAGER_STEP, BET_FEE_AMOUNT
 
 } from '../lib/supabase-db'
 
@@ -911,6 +912,7 @@ function Main() {
             <b>{GAMES.find((g) => g[0] === game)[1]}</b><p className="small">House edge {cfg.edge?.[game] || 0}%</p>
 
                         <label>Bet amount</label>
+            <p className="small">₹{BET_FEE_AMOUNT} is deducted for every completed ₹{BET_FEE_WAGER_STEP} of cumulative bets. Partial amounts carry over.</p>
             <div className="row">
               <input type="number" min="1" max="100000" value={amt} onChange={(e) => setAmt(e.target.value)} />
               <button type="button" onClick={() => setAmt(Math.max(1, Math.floor((+amt || 10) / 2)))}>½</button>

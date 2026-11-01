@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { 
   db, toast, f, createRequest, refreshUser, changePassword,
-  supabase, REFERRAL_REWARD_PERCENT
+  supabase, REFERRAL_REWARD_PERCENT, BET_FEE_WAGER_STEP, BET_FEE_AMOUNT
 } from '../lib/supabase-db'
 
 export function Wallet({ u, me }) {
@@ -381,6 +381,10 @@ export function Wager({ u, me }) {
         <i style={{ width: Math.min(100, ((u.total_wagered || 0) / Math.max(1, (u.total_wagered || 0) + (u.bonus_needed || 0))) * 100) + '%' }} />
       </div>
       <p className="small">Total wagered so far: <b>₹{f(u.total_wagered || 0)}</b></p>
+      <p className="small">
+        Bet fee: ₹{BET_FEE_AMOUNT} per completed ₹{BET_FEE_WAGER_STEP} wagered.
+        ₹{f(u.bet_fee_progress || 0)} counted toward the next fee.
+      </p>
     </div>
   )
 }

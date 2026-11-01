@@ -17,6 +17,7 @@ CREATE TABLE users (
   bonus_balance DECIMAL(15,2) DEFAULT 0,
   bonus_needed DECIMAL(15,2) DEFAULT 0,
   total_wagered DECIMAL(15,2) DEFAULT 0,
+  bet_fee_progress DECIMAL(5,2) NOT NULL DEFAULT 0,
   total_wins INT DEFAULT 0,
   total_bets INT DEFAULT 0,
   pnl DECIMAL(15,2) DEFAULT 0,
