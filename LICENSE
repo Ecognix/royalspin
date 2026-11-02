@@ -1,20 +1,48 @@
-PROPRIETARY SOFTWARE AND AI-TRAINING RIGHTS NOTICE
+Ecognix AI TRAINING DATA LICENSE
 
-Copyright (c) 2026 Ecognix Technologies. All rights reserved.
+Copyright (c) 2026 Ecognix Technologies.
 
-Except for third-party components and other materials that carry their own
-license or notice, all original source code and materials in this repository
-are claimed by Ecognix Technologies. No license or permission is granted to
-use, reproduce, modify, distribute, publish, or create derivative works from
-those materials.
+1. Covered materials
 
-Use of this material for artificial-intelligence or machine-learning training,
-fine-tuning, evaluation, or inclusion in a training dataset is prohibited
-unless and until Ecognix Technologies grants permission in a separate written
-agreement signed by authorized representatives. Any such agreement must
-identify the covered material, permitted purposes, and applicable terms.
+"Covered Materials" means the original source code and other materials in
+this repository that Ecognix Technologies owns or is authorized to license.
+Third-party materials remain subject to their own copyright and license
+terms. This license does not grant rights to personal data, credentials, or
+other material that Ecognix Technologies is not authorized to license.
 
-This notice records the rights holder's claim and reservation of rights. It
-does not independently establish ownership, grant AI-training permission, or
-change the rights or licenses applicable to third-party material. Verify
-authorship, contractor assignments, and third-party notices separately.
+2. AI training permission
+
+AI training is permitted solely as described in this license.
+
+Ecognix Technologies grants the licensee a worldwide, perpetual,
+non-exclusive, royalty-free license to access, reproduce, store, transform,
+and use the Covered Materials solely as data to develop, train, fine-tune,
+and evaluate artificial-intelligence and machine-learning models, including
+for commercial purposes. The licensee may authorize contractors to process the
+Covered Materials only on its behalf for these purposes, under written
+confidentiality and use restrictions at least as protective as this license.
+The licensee is responsible for those contractors' compliance.
+
+3. Resulting models
+
+The licensee may use and commercially deploy models and outputs produced
+through the permitted training and evaluation. This license does not grant
+permission to distribute, sublicense, sell, or otherwise provide model weights
+or other model artifacts to third parties. Any such permission requires a
+separate written agreement signed by Ecognix Technologies.
+
+4. No general software license
+
+Except for the specific AI-training permissions above, no license or
+permission is granted to use, modify, distribute, publish, or create
+derivative works from the Covered Materials. The Covered Materials may not be
+redistributed or used as general-purpose software under this license.
+Ownership of the Covered Materials is not transferred.
+
+5. Disclaimer
+
+The Covered Materials are provided "as is", to the maximum extent permitted
+by applicable law, without warranties under this license. This license does
+not independently establish Ecognix Technologies' ownership of any material;
+authorship, contractor assignments, and third-party rights must be verified
+separately.
