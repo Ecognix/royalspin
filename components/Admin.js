@@ -646,6 +646,25 @@ function Panel({ onOut }) {
   const [usersData, setUsersData] = useState({})
   const [betsData, setBetsData] = useState([])
   const [reqsData, setReqsData] = useState([])
+  const [statBets, setStatBets] = useState([])
+  const [dayPage, setDayPage] = useState(0)
+  const [dayPageSize, setDayPageSize] = useState(10)
+  const [openDays, setOpenDays] = useState({})
+
+  // Overview statistics are shown from this date onward; older data stays in the backend
+  const STATS_START = '2026-11-02T00:00:00+05:30'
+
+  const fetchStatBets = async () => {
+    const rows = []
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase.from('bets').select('game, amount, win_amount, created_at')
+        .gte('created_at', STATS_START).order('created_at', { ascending: true }).range(from, from + 999)
+      if (error) { console.error('fetchStatBets error:', error); break }
+      rows.push(...(data || []))
+      if (!data || data.length < 1000) break
+    }
+    setStatBets(rows)
+  }
 
   const fetchAdminData = async () => {
     try {
@@ -659,6 +678,7 @@ function Panel({ onOut }) {
       setUsersData(usersMap)
       setBetsData(bets || [])
       setReqsData(reqs || [])
+      await fetchStatBets()
     } catch (err) {
       console.error('fetchAdminData error:', err)
     }
@@ -1004,8 +1024,21 @@ function Panel({ onOut }) {
   }
 
   const players = Object.keys(usersData)
-  const vol = betsData.reduce((s, x) => s + (Number(x.amount) || 0), 0)
-  const profit = betsData.reduce((s, x) => s + (Number(x.amount) || 0) - (Number(x.win_amount) || 0), 0)
+  const vol = statBets.reduce((s, x) => s + (Number(x.amount) || 0), 0)
+  const profit = statBets.reduce((s, x) => s + (Number(x.amount) || 0) - (Number(x.win_amount) || 0), 0)
+
+  const dayMap = {}
+  statBets.forEach(x => {
+    const day = new Date(x.created_at).toLocaleDateString('en-CA')
+    const d = dayMap[day] || (dayMap[day] = { day, bets: 0, volume: 0, payout: 0, games: {} })
+    const amt = Number(x.amount) || 0, win = Number(x.win_amount) || 0
+    d.bets++; d.volume += amt; d.payout += win
+    const g = d.games[x.game] || (d.games[x.game] = { bets: 0, volume: 0, payout: 0 })
+    g.bets++; g.volume += amt; g.payout += win
+  })
+  const dayRows = Object.values(dayMap).sort((a, b) => (a.day < b.day ? 1 : -1))
+  const dayTotalPages = Math.max(1, Math.ceil(dayRows.length / dayPageSize))
+  const dayDisplayed = dayRows.slice(dayPage * dayPageSize, (dayPage + 1) * dayPageSize)
 
   const deposits = reqsData.filter(r => String(r.type || '').toLowerCase() === 'deposit')
   const withdrawals = reqsData.filter(r => String(r.type || '').toLowerCase() === 'withdraw')
@@ -1252,13 +1285,56 @@ function Panel({ onOut }) {
               <table style={{ width: '100%', minWidth: 300 }}>
                 <tbody>
                   <tr><td>Players Registered</td><td><b>{players.length}</b></td></tr>
-                  <tr><td>Total Bets Logged</td><td><b>{betsData.length}</b></td></tr>
+                  <tr><td>Total Bets Logged</td><td><b>{statBets.length}</b></td></tr>
                   <tr><td>Total Volume</td><td><b style={{ color: 'var(--ac)' }}>₹{f(vol)}</b></td></tr>
                   <tr><td>House Net Profit</td><td style={{ color: profit >= 0 ? 'var(--ac)' : 'var(--bad)', fontWeight: 700 }}>₹{f(profit)}</td></tr>
                   <tr><td>Pending Deposits</td><td><b style={{ color: pendingDeposits.length ? '#f59e0b' : 'inherit' }}>{pendingDeposits.length}</b></td></tr>
                   <tr><td>Pending Withdrawals</td><td><b style={{ color: pendingWithdrawals.length ? 'var(--bad)' : 'inherit' }}>{pendingWithdrawals.length}</b></td></tr>
                 </tbody>
               </table>
+              <h3 style={{ margin: '18px 0 8px' }}>Daily Analysis</h3>
+              {dayDisplayed.map(d => {
+                const open = !!openDays[d.day], p = d.volume - d.payout
+                return (
+                  <div key={d.day} style={{ background: 'var(--c2)', borderRadius: 12, border: '1px solid ' + (open ? 'var(--ac)' : '#ffffff14'), marginBottom: 8, overflow: 'hidden' }}>
+                    <div onClick={() => setOpenDays(prev => ({ ...prev, [d.day]: !prev[d.day] }))} style={{ padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', cursor: 'pointer' }}>
+                      <div>
+                        <div style={{ fontWeight: 700 }}>{new Date(d.day + 'T00:00:00').toLocaleDateString()}</div>
+                        <div className="small" style={{ color: 'var(--mut)', fontSize: 11 }}>{d.bets} bets · Volume ₹{f(d.volume)}</div>
+                      </div>
+                      <div style={{ fontWeight: 800, color: p >= 0 ? 'var(--ac)' : 'var(--bad)' }}>₹{f(p)} {open ? '▲' : '▼'}</div>
+                    </div>
+                    {open && (
+                      <div style={{ padding: '0 14px 12px', overflowX: 'auto' }}>
+                        <table style={{ width: '100%', minWidth: 300 }}>
+                          <thead><tr><th>Game</th><th>Bets</th><th>Volume</th><th>Payout</th><th>Profit</th></tr></thead>
+                          <tbody>
+                            {Object.entries(d.games).map(([g, v]) => (
+                              <tr key={g}>
+                                <td style={{ textTransform: 'capitalize' }}>{g}</td><td>{v.bets}</td><td>₹{f(v.volume)}</td><td>₹{f(v.payout)}</td>
+                                <td style={{ color: v.volume - v.payout >= 0 ? 'var(--ac)' : 'var(--bad)' }}>₹{f(v.volume - v.payout)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              {!dayRows.length && <p className="small">No bets logged yet</p>}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                <label className="small" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Per page
+                  <select value={dayPageSize} onChange={(e) => { setDayPageSize(+e.target.value); setDayPage(0) }}>
+                    {[10, 25, 50].map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button disabled={dayPage === 0} onClick={() => setDayPage(p => p - 1)} style={{ padding: '5px 12px', background: 'var(--c2)', opacity: dayPage === 0 ? 0.4 : 1 }}>Prev</button>
+                  <span className="small">Page {dayPage + 1} / {dayTotalPages}</span>
+                  <button disabled={dayPage + 1 >= dayTotalPages} onClick={() => setDayPage(p => p + 1)} style={{ padding: '5px 12px', background: 'var(--c2)', opacity: dayPage + 1 >= dayTotalPages ? 0.4 : 1 }}>Next</button>
+                </div>
+              </div>
             </div>
           )}
 

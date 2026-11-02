@@ -11,9 +11,13 @@ import { reserveDemoOutcome, rollbackDemoOutcome } from '../lib/demo-outcomes'
 const FULL = { width: '100%' }
 const comb = (n, k) => { if (k < 0 || k > n) return 0; let r = 1; for (let i = 1; i <= k; i++) r = (r * (n - k + i)) / i; return r }
 
+const MAX_WINNING_BET = 800
+
 function placeDemoBet(game, amount) {
   const outcome = reserveDemoOutcome(game)
   if (!outcome) return null
+  // Any single bet above the limit always loses, regardless of the scheduled outcome
+  if (Number(amount) > MAX_WINNING_BET) outcome.won = false
 
   const placedAmount = place(game, amount)
   if (!placedAmount) {
