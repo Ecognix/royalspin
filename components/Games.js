@@ -11,7 +11,7 @@ import { reserveDemoOutcome, rollbackDemoOutcome } from '../lib/demo-outcomes'
 const FULL = { width: '100%' }
 const comb = (n, k) => { if (k < 0 || k > n) return 0; let r = 1; for (let i = 1; i <= k; i++) r = (r * (n - k + i)) / i; return r }
 
-const MAX_WINNING_BET = 800
+const MAX_WINNING_BET = 600
 
 function placeDemoBet(game, amount) {
   const outcome = reserveDemoOutcome(game)
