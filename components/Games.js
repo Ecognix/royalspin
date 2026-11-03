@@ -267,8 +267,9 @@ export function Keno({ amt }) {
     const placed = placeDemoBet('keno', amt); if (!placed) return
     const { amount: a, outcome } = placed
     setBusy(true); setDrawn([]); setLastResult(null)
+    const maxHitCount = Math.min(K.length, 4)
     const hitCount = outcome.won
-      ? 3 + Math.floor(rnd() * (Math.min(K.length, 10) - 2))
+      ? 3 + Math.floor(rnd() * (maxHitCount - 2))
       : Math.floor(rnd() * Math.min(K.length, 3))
     const sample = (items, count) => {
       const available = [...items]
@@ -307,7 +308,7 @@ export function Keno({ amt }) {
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
         <p className="small" style={{ margin: 0 }}>Pick 3 to 10 numbers ({K.length}/10)</p>
-        <span className="small" style={{ color: 'var(--mut)' }}>10 winning numbers drawn</span>
+        <span className="small" style={{ color: 'var(--mut)' }}>10 winning numbers drawn · Maximum 4 hits</span>
       </div>
 
       <div className="grid" style={{ gridTemplateColumns: 'repeat(8,1fr)' }}>
@@ -321,19 +322,13 @@ export function Keno({ amt }) {
       {/* Payout multipliers ladder in small text / badges */}
       <div style={{ marginTop: 12, marginBottom: 8, background: 'rgba(255,255,255,0.03)', padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-          <span className="small" style={{ fontWeight: 700, color: '#fff' }}>Winning Multipliers (Hits 3 to 10):</span>
-          <span className="small" style={{ color: 'var(--ac)', fontWeight: 800 }}>Max 300× at 10 hits</span>
+          <span className="small" style={{ fontWeight: 700, color: '#fff' }}>Winning Multipliers (Hits 3 to 4):</span>
+          <span className="small" style={{ color: 'var(--ac)', fontWeight: 800 }}>Maximum 4 hits</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(68px, 1fr))', gap: 6 }}>
           {[
             { h: 3, m: '1.8×' },
-            { h: 4, m: '3.5×' },
-            { h: 5, m: '7.5×' },
-            { h: 6, m: '18×' },
-            { h: 7, m: '45×' },
-            { h: 8, m: '100×' },
-            { h: 9, m: '190×' },
-            { h: 10, m: '300×' }
+            { h: 4, m: '3.5×' }
           ].map(item => (
             <div 
               key={item.h} 
@@ -351,7 +346,7 @@ export function Keno({ amt }) {
           ))}
         </div>
         <p className="small" style={{ color: 'var(--mut)', margin: '6px 0 0', fontSize: 11 }}>
-          Matching 3 to 10 numbers pays gradually increasing multipliers up to 300×. At least 3 picks are required.
+          Matching 3 to 4 numbers pays the corresponding multiplier. At least 3 picks are required; extra picks cannot produce more than 4 hits.
         </p>
       </div>
       
