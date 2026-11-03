@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { 
   db, toast, f, createRequest, refreshUser, changePassword,
-  supabase, REFERRAL_REWARD_PERCENT, BET_FEE_WAGER_STEP, BET_FEE_AMOUNT
+  supabase, REFERRAL_REWARD_PERCENT, BET_FEE_WAGER_STEP, BET_FEE_AMOUNT, MIN_WITHDRAWAL_AMOUNT
 } from '../lib/supabase-db'
 
 export function Wallet({ u, me }) {
@@ -83,7 +83,8 @@ export function Wallet({ u, me }) {
     if (Number(u.bonus_needed || 0) > 0) {
       return toast('Wager ₹' + f(u.bonus_needed) + ' more before withdrawing')
     }
-    if (!(a > 0) || a > u.balance) return toast('Check withdrawal amount')
+    if (a < MIN_WITHDRAWAL_AMOUNT) return toast('Minimum withdrawal is ₹' + f(MIN_WITHDRAWAL_AMOUNT))
+    if (a > u.balance) return toast('Check withdrawal amount')
 
     let withdrawRef = ''
     if (wMethod === 'upi') {
@@ -143,11 +144,6 @@ export function Wallet({ u, me }) {
       ) : (
         <div className="card">
           <b>Withdraw Funds</b>
-          {Number(u.bonus_needed || 0) > 0 && (
-            <p className="small" style={{ color: '#f59e0b' }}>
-              Wager ₹{f(u.bonus_needed)} more before withdrawals are available.
-            </p>
-          )}
           <div style={{ display: 'flex', gap: 8, margin: '10px 0 14px' }}>
             <button 
               type="button" 
@@ -186,14 +182,14 @@ export function Wallet({ u, me }) {
           )}
 
           <label style={{ marginTop: 8 }}>Amount (₹)</label>
-          <input type="number" value={wa} onChange={(e) => setWa(e.target.value)} placeholder="Enter withdrawal amount" />
+          <input type="number" min={MIN_WITHDRAWAL_AMOUNT} value={wa} onChange={(e) => setWa(e.target.value)} placeholder="Minimum ₹1,000" />
           <button
             className="p"
             style={{ width: '100%', marginTop: 14 }}
             onClick={wsub}
             disabled={Number(u.bonus_needed || 0) > 0}
           >
-            Request Withdrawal
+            {Number(u.bonus_needed || 0) > 0 ? 'Request Withdrawal (Locked)' : 'Request Withdrawal'}
           </button>
         </div>
       )}
