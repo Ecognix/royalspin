@@ -628,6 +628,8 @@ function Panel({ onOut }) {
   const [withFilter, setWithFilter] = useState('all')
   const [openReqs, setOpenReqs] = useState({})
   const [processingRequests, setProcessingRequests] = useState({})
+  const [editingPayout, setEditingPayout] = useState(null)
+  const [savingPayout, setSavingPayout] = useState(false)
 
   // Local config state
   const [c, setC] = useState(() => D.cfg || {
@@ -1023,6 +1025,34 @@ function Panel({ onOut }) {
     setOpenReqs(prev => ({ ...prev, [id]: !prev[id] }))
   }
 
+  const savePayoutDetails = async (requestId) => {
+    const details = String(editingPayout?.details || '').trim()
+    if (!details) return toast('Enter the player payout details')
+
+    setSavingPayout(true)
+    try {
+      const { error } = await supabase
+        .from('requests')
+        .update({ upi_id: details, updated_at: new Date().toISOString() })
+        .eq('id', requestId)
+        .eq('type', 'withdraw')
+      if (error) {
+        console.error('Payout details update error:', error)
+        toast('Could not update payout details')
+        return
+      }
+
+      setReqsData(prev => prev.map(request => request.id === requestId
+        ? { ...request, upi_id: details, updated_at: new Date().toISOString() }
+        : request
+      ))
+      setEditingPayout(null)
+      toast('Player payout details updated')
+    } finally {
+      setSavingPayout(false)
+    }
+  }
+
   const players = Object.keys(usersData)
   const vol = statBets.reduce((s, x) => s + (Number(x.amount) || 0), 0)
   const profit = statBets.reduce((s, x) => s + (Number(x.amount) || 0) - (Number(x.win_amount) || 0), 0)
@@ -1195,15 +1225,54 @@ function Panel({ onOut }) {
               </div>
               <div>
                 <span className="small" style={{ color: 'var(--mut)' }}>{isDep ? 'UTR / Txn Ref' : 'Withdrawal UPI / Details'}</span>
-                <div style={{ fontWeight: 700, color: '#f59e0b', wordBreak: 'break-all' }}>
-                  {r.upi_id || r.utr || 'None provided'}
-                </div>
+                {isDep ? (
+                  <div style={{ fontWeight: 700, color: '#f59e0b', wordBreak: 'break-all' }}>
+                    {r.upi_id || r.utr || 'None provided'}
+                  </div>
+                ) : editingPayout?.id === r.id ? (
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                    <input
+                      value={editingPayout.details}
+                      onChange={(e) => setEditingPayout(prev => ({ ...prev, details: e.target.value }))}
+                      placeholder="UPI ID or bank details"
+                      style={{ flex: '1 1 220px', minWidth: 0 }}
+                    />
+                    <button
+                      className="p"
+                      onClick={() => savePayoutDetails(r.id)}
+                      disabled={savingPayout}
+                      style={{ padding: '6px 10px' }}
+                    >
+                      {savingPayout ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      onClick={() => setEditingPayout(null)}
+                      disabled={savingPayout}
+                      style={{ padding: '6px 10px' }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ fontWeight: 700, color: '#f59e0b', wordBreak: 'break-all' }}>
+                    {r.upi_id || r.utr || 'None provided'}
+                  </div>
+                )}
               </div>
               <div>
                 <span className="small" style={{ color: 'var(--mut)' }}>Submitted At</span>
                 <div>{new Date(r.created_at).toLocaleString()}</div>
               </div>
             </div>
+
+            {!isDep && editingPayout?.id !== r.id && (
+              <button
+                onClick={() => setEditingPayout({ id: r.id, details: r.upi_id || r.utr || '' })}
+                style={{ padding: '7px 10px', marginTop: 4 }}
+              >
+                Edit payout details
+              </button>
+            )}
 
             {isPending && (
               <div style={{ display: 'flex', gap: 8, marginTop: 10, paddingTop: 10, borderTop: '1px solid #ffffff0a' }}>
