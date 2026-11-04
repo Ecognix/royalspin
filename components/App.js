@@ -289,7 +289,7 @@ export function Notifications() {
 
 
 
-function WinGoResultCard({ notif, onDismiss, progress }) {
+function WinGoResultCard({ notif, onDismiss }) {
   const isWin = notif.type === 'win'
   const number = notif.resultNumber
   const resultColor = number === 0
@@ -301,10 +301,10 @@ function WinGoResultCard({ notif, onDismiss, progress }) {
 
   return (
     <div className="win-go-result-overlay">
-      <section className="win-go-result-card" role="dialog" aria-modal="true" aria-label="WIN GO result">
+      <section className={`win-go-result-card ${isWin ? 'win' : 'loss'}`} role="dialog" aria-modal="true" aria-label="WIN GO result">
         <button type="button" className="win-go-result-close" onClick={onDismiss} aria-label="Close result">×</button>
         <div className="win-go-result-medallion" aria-hidden="true">✦</div>
-        <h2>{isWin ? 'Congratulations' : 'Round complete'}</h2>
+        <h2>{isWin ? 'Congratulations' : 'Sorry'}</h2>
         <div className="win-go-result-tags">
           <span>Lottery result</span>
           <b className={`win-go-result-chip ${resultTone}`}>{resultColor}</b>
@@ -312,13 +312,12 @@ function WinGoResultCard({ notif, onDismiss, progress }) {
           <b className="win-go-result-chip size">{number >= 5 ? 'Big' : 'Small'}</b>
         </div>
         <div className="win-go-result-payout">
-          <span>{isWin ? 'Net win' : 'Net loss'}</span>
+          {isWin && <span>Net win</span>}
           <strong className={isWin ? 'win' : 'loss'}>{notif.message}</strong>
           <small>{notif.periodTitle} · Period #{notif.periodNumber}</small>
           <small>Bet ₹{f(notif.betAmount)} · Return ₹{f(notif.returnAmount)}</small>
         </div>
-        <p className="win-go-result-autoclose"><span aria-hidden="true">✓</span> {Math.ceil((notif.autoClose || 3000) / 1000)} seconds auto close</p>
-        <div className="win-go-result-progress"><i style={{ width: `${progress}%` }} /></div>
+        <p className="win-go-result-autoclose"><span aria-hidden="true">✓</span> {Math.ceil((notif.autoClose || 5000) / 1000)} seconds auto close</p>
       </section>
     </div>
   )
@@ -381,7 +380,7 @@ function NotificationCard({ notif, onDismiss }) {
   }
 
   if (center && Number.isInteger(resultNumber)) {
-    return <WinGoResultCard notif={notif} onDismiss={onDismiss} progress={progress} />
+    return <WinGoResultCard notif={notif} onDismiss={onDismiss} />
   }
 
   
