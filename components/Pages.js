@@ -365,6 +365,8 @@ export function Activity({ u, initialTab = 'bets' }) {
   const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  const [recordFilter, setRecordFilter] = useState('all')
+  const [dateFilter, setDateFilter] = useState('')
 
   async function loadActivity() {
     if (!u?.id) return
@@ -373,7 +375,7 @@ export function Activity({ u, initialTab = 'bets' }) {
     try {
       const [betResult, transactionResult, requestResult] = await Promise.all([
         supabase.from('bets').select('id,game,amount,win_amount,created_at').eq('user_id', u.id).order('created_at', { ascending: false }).limit(200),
-        supabase.from('transactions').select('id,type,amount,balance_after,created_at').eq('user_id', u.id).order('created_at', { ascending: false }).limit(200),
+        supabase.from('transactions').select('id,type,amount,balance_after,details,created_at').eq('user_id', u.id).order('created_at', { ascending: false }).limit(200),
         supabase.from('requests').select('id,type,amount,status,upi_id,created_at').eq('user_id', u.id).in('type', ['deposit', 'withdraw']).order('created_at', { ascending: false }).limit(200)
       ])
       const firstError = betResult.error || transactionResult.error || requestResult.error
@@ -395,31 +397,54 @@ export function Activity({ u, initialTab = 'bets' }) {
   useEffect(() => {
     setTab(initialTab)
     setPage(0)
+    setRecordFilter('all')
+    setDateFilter('')
     loadActivity()
   }, [u?.id, initialTab])
 
   const rows = tab === 'bets' ? bets
     : tab === 'transactions' ? transactions
       : requests.filter(request => request.type === tab)
+  const filteredRows = rows.filter(row => {
+    if (dateFilter && new Date(row.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) !== dateFilter) return false
+    if (recordFilter === 'all') return true
+    if (tab === 'bets') return recordFilter === 'wins' ? Number(row.win_amount) > Number(row.amount) : Number(row.win_amount) <= Number(row.amount)
+    if (tab === 'transactions') return recordFilter === 'credits' ? Number(row.amount) > 0 : Number(row.amount) < 0
+    return String(row.status || 'pending').toLowerCase() === recordFilter
+  })
   const pageSize = 10
-  const pages = Math.max(1, Math.ceil(rows.length / pageSize))
-  const shown = rows.slice(page * pageSize, (page + 1) * pageSize)
+  const pages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
+  const shown = filteredRows.slice(page * pageSize, (page + 1) * pageSize)
+  const pageTitle = tab === 'bets' ? 'Game history'
+    : tab === 'transactions' ? 'Transaction history'
+      : tab === 'deposit' ? 'Deposit history' : 'Withdrawal history'
+  const filterOptions = tab === 'bets' ? [['all', 'All results'], ['wins', 'Wins'], ['losses', 'Losses']]
+    : tab === 'transactions' ? [['all', 'All transactions'], ['credits', 'Credits'], ['debits', 'Debits']]
+      : [['all', 'All statuses'], ['pending', 'Pending'], ['approved', 'Approved'], ['rejected', 'Rejected']]
 
   function chooseTab(nextTab) {
     setTab(nextTab)
     setPage(0)
+    setRecordFilter('all')
+    setDateFilter('')
   }
 
   return (
     <div className="activity-page">
-      <div className="page-title"><div><h2>Activity</h2><p>Review your recent account history.</p></div><button onClick={loadActivity}>Refresh</button></div>
+      <div className="page-title"><div><h2>{pageTitle}</h2><p>Review your recent account history.</p></div><button onClick={loadActivity}>Refresh</button></div>
       <div className="activity-tabs">
         {[['bets', 'Game history'], ['transactions', 'Transactions'], ['deposit', 'Deposits'], ['withdraw', 'Withdrawals']].map(([key, label]) => (
           <button key={key} className={tab === key ? 'selected' : ''} onClick={() => chooseTab(key)}>{label}</button>
         ))}
       </div>
+      <div className="history-filters">
+        <select value={recordFilter} onChange={event => { setRecordFilter(event.target.value); setPage(0) }} aria-label="Filter history">
+          {filterOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+        <input type="date" value={dateFilter} onChange={event => { setDateFilter(event.target.value); setPage(0) }} aria-label="Filter by date" />
+      </div>
       {loadError && <p className="page-error">{loadError}</p>}
-      <div className="activity-list">
+      <div className="history-records">
         {shown.map(row => {
           if (tab === 'bets') {
             const net = Number(row.win_amount || 0) - Number(row.amount || 0)
@@ -432,21 +457,46 @@ export function Activity({ u, initialTab = 'bets' }) {
           }
           if (tab === 'transactions') {
             const amount = Number(row.amount || 0)
+            const detail = row.details?.game
+              ? `Game: ${row.details.game}`
+              : row.details?.utr
+                ? `UTR: ${row.details.utr}`
+                : row.details?.upi
+                  ? `UPI: ${row.details.upi}`
+                  : row.details?.request_id
+                    ? `Request: ${String(row.details.request_id).slice(0, 8)}`
+                    : row.type
             return (
-              <div className="activity-row" key={row.id}>
-                <div><b>{row.type}</b><small>{new Date(row.created_at).toLocaleString()} · Balance ₹{f(row.balance_after)}</small></div>
-                <strong className={amount >= 0 ? 'positive' : 'negative'}>{amount >= 0 ? '+' : ''}₹{f(amount)}</strong>
-              </div>
+              <article className="history-record" key={row.id}>
+                <div className="history-record-heading">
+                  <span><HubIcon name="transactions" /></span>
+                  <b>{String(row.type || 'Transaction').replace(/^\w/, letter => letter.toUpperCase())}</b>
+                  <strong className={amount >= 0 ? 'positive' : 'negative'}>{amount >= 0 ? '+' : ''}₹{f(amount)}</strong>
+                </div>
+                <div className="history-record-details">
+                  <div><span>Detail</span><b>{detail}</b></div>
+                  <div><span>Time</span><b>{new Date(row.created_at).toLocaleString()}</b></div>
+                  <div><span>Balance</span><b className="history-balance">₹{f(row.balance_after)}</b></div>
+                </div>
+              </article>
             )
           }
           return (
-            <div className="activity-row" key={row.id}>
-              <div><b>{tab === 'deposit' ? 'Deposit request' : 'Withdrawal request'}</b><small>{new Date(row.created_at).toLocaleString()} · {row.upi_id || 'No reference'}</small></div>
-              <strong>₹{f(row.amount)}<small className="activity-status">{row.status}</small></strong>
-            </div>
+            <article className="history-record" key={row.id}>
+              <div className="history-record-heading">
+                <span><HubIcon name={tab === 'deposit' ? 'deposit' : 'withdraw'} /></span>
+                <b>{tab === 'deposit' ? 'Deposit request' : 'Withdrawal request'}</b>
+                <strong>₹{f(row.amount)}</strong>
+              </div>
+              <div className="history-record-details">
+                <div><span>Detail</span><b>{row.upi_id || 'No reference provided'}</b></div>
+                <div><span>Time</span><b>{new Date(row.created_at).toLocaleString()}</b></div>
+                <div><span>Status</span><b className={'history-status status-' + String(row.status || 'pending').toLowerCase()}>{row.status || 'Pending'}</b></div>
+              </div>
+            </article>
           )
         })}
-        {!shown.length && <div className="activity-empty">{loading ? 'Loading activity…' : 'No activity yet'}</div>}
+        {!shown.length && <div className="activity-empty">{loading ? 'Loading activity…' : 'No activity found for these filters'}</div>}
       </div>
       {pages > 1 && (
         <div className="activity-pagination">

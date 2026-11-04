@@ -107,6 +107,25 @@ main.player-main{width:100%;max-width:520px;min-height:calc(100vh - 60px);margin
 .activity-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:4px;border-radius:11px;background:#fff}
 .activity-tabs button{padding:10px 4px;background:transparent;color:#738095;font-size:12px}
 .activity-tabs button.selected{border-radius:8px;background:#fff0f0;color:#ee555d;font-weight:700}
+.history-filters{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.history-filters select,.history-filters input{min-width:0;height:44px;padding:8px 10px;border:1px solid #e6e8ed;border-radius:9px;background:#fff;color:#5f6c81;font-size:13px}
+.history-records{display:flex;flex-direction:column;gap:12px}
+.history-record{overflow:hidden;border:1px solid #eceef2;border-radius:10px;background:#fff;box-shadow:0 2px 9px #25334b0a}
+.history-record-heading{display:flex;align-items:center;gap:10px;min-height:48px;padding:9px 12px;background:linear-gradient(100deg,#ff5a61,#ff9687);color:#fff}
+.history-record-heading>span{width:26px;height:26px;display:grid;place-items:center;flex:none}
+.history-record-heading svg{width:23px;height:23px}
+.history-record-heading b{flex:1;font-size:14px}
+.history-record-heading strong{font-size:15px;white-space:nowrap}
+.history-record-heading .positive,.history-record-heading .negative{color:#fff}
+.history-record-details{display:flex;flex-direction:column;gap:5px;padding:9px 10px 11px}
+.history-record-details>div{display:grid;grid-template-columns:88px minmax(0,1fr);align-items:start;gap:8px;padding:7px 9px;border-radius:5px;background:#f5f6fa;font-size:12px}
+.history-record-details span{color:#7b879a}
+.history-record-details b{color:#46536a;font-weight:600;overflow-wrap:anywhere;text-align:right}
+.history-record-details b.history-balance{color:#16a064;font-size:15px}
+.history-status{text-transform:capitalize}
+.history-status.status-approved{color:#15945b!important}
+.history-status.status-pending,.history-status.status-processing{color:#dc8b19!important}
+.history-status.status-rejected{color:#e44d57!important}
 .activity-list{overflow:hidden;border-radius:13px;background:#fff}
 .activity-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px;border-bottom:1px solid #eff0f4}
 .activity-row:last-child{border-bottom:0}
