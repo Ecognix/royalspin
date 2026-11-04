@@ -63,14 +63,28 @@ export function Dice({ amt }) {
       }
     }, 70)
   }
-  const shown = spin != null ? f(spin) : res ? f(res.x) : '—'
-  const color = spin != null || !res ? undefined : res.w ? 'var(--ac)' : 'var(--bad)'
+  const markerX = spin != null ? spin : res?.x
+  const markerColor = markerX == null
+    ? 'var(--ac)'
+    : over
+      ? markerX <= t ? '#ff5a5a' : '#2ee67a'
+      : markerX <= t ? '#2ee67a' : '#ff5a5a'
   return (
     <>
-      <div className="big" style={{ color }}>{shown}</div>
-      
-      <div className="dbar" style={{ background: `linear-gradient(90deg,${over ? '#ff5a5a' : '#2ee67a'} ${t}%,${over ? '#2ee67a' : '#ff5a5a'} ${t}%)` }}>
-        <div className="mk" style={{ left: (res ? res.x : 50) + '%', opacity: res ? 1 : 0 }}>{res ? f(res.x) : 0}</div>
+      <div className="dice-stage">
+        <div className="dbar" style={{ background: `linear-gradient(90deg,${over ? '#ff5a5a' : '#2ee67a'} ${t}%,${over ? '#2ee67a' : '#ff5a5a'} ${t}%)` }}>
+          <div
+            className="mk"
+            style={{
+              left: (markerX ?? 50) + '%',
+              opacity: markerX == null ? 0 : 1,
+              background: markerColor,
+              '--marker-color': markerColor
+            }}
+          >
+            {markerX == null ? '' : f(markerX)}
+          </div>
+        </div>
       </div>
       <div className="chips">
         <button className={over ? 'on' : ''} onClick={() => setOver(true)}>Roll over</button>
@@ -313,21 +327,22 @@ export function Keno({ amt }) {
         <span className="small" style={{ color: 'var(--mut)' }}>10 winning numbers drawn</span>
       </div>
 
-      <div className="grid" style={{ gridTemplateColumns: 'repeat(8,1fr)' }}>
-        {Array.from({ length: 40 }, (_, i) => {
-          const sel = K.includes(i), dr = drawn.includes(i)
-          const bg = sel && dr ? '#b8860b' : sel ? '#0d6b43' : dr ? '#33495a' : undefined
-          return <button key={i} className={'t' + (dr ? ' pop' : '')} style={{ fontSize: 13, background: bg, outline: dr ? (sel ? '3px solid #ffd54f' : '2px solid #ffffff55') : 'none' }} onClick={() => tog(i)}>{i + 1}</button>
-        })}
+      <div className="keno-board">
+        <div className="keno-grid">
+          {Array.from({ length: 40 }, (_, i) => {
+            const sel = K.includes(i), dr = drawn.includes(i)
+            const bg = sel && dr ? '#b8860b' : sel ? '#0d6b43' : dr ? '#33495a' : undefined
+            return <button key={i} className={'t' + (dr ? ' pop' : '')} style={{ fontSize: 13, background: bg, color: sel || dr ? '#fff' : 'var(--tx)', outline: dr ? (sel ? '3px solid #ffd54f' : '2px solid #ffffff88') : 'none' }} onClick={() => tog(i)}>{i + 1}</button>
+          })}
+        </div>
       </div>
 
-      {/* Payout multipliers ladder in small text / badges */}
-      <div style={{ marginTop: 12, marginBottom: 8, background: 'rgba(255,255,255,0.03)', padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-          <span className="small" style={{ fontWeight: 700, color: '#fff' }}>Winning Multipliers (Hits 3 to 10):</span>
-          <span className="small" style={{ color: 'var(--ac)', fontWeight: 800 }}>Max 300× at 10 hits</span>
+      <div className="keno-payout-panel">
+        <div className="keno-payout-heading">
+          <span className="small">Winning multipliers (3–10 hits)</span>
+          <span className="small keno-payout-max">Max 300×</span>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(68px, 1fr))', gap: 6 }}>
+        <div className="keno-payout-grid">
           {[
             { h: 3, m: '1.8×' },
             { h: 4, m: '3.5×' },
@@ -338,22 +353,13 @@ export function Keno({ amt }) {
             { h: 9, m: '190×' },
             { h: 10, m: '300×' }
           ].map(item => (
-            <div 
-              key={item.h} 
-              style={{ 
-                background: 'rgba(255,255,255,0.04)', 
-                border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: 6, 
-                padding: '4px 6px', 
-                textAlign: 'center' 
-              }}
-            >
-              <div style={{ fontSize: 10, color: 'var(--mut)' }}>{item.h} hits</div>
-              <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ac)' }}>{item.m}</div>
+            <div key={item.h} className="keno-payout-badge">
+              <div>{item.h} hits</div>
+              <b>{item.m}</b>
             </div>
           ))}
         </div>
-        <p className="small" style={{ color: 'var(--mut)', margin: '6px 0 0', fontSize: 11 }}>
+        <p className="small keno-payout-note">
           Matching 3 to 10 numbers pays gradually increasing multipliers up to 300×. At least 3 picks are required.
         </p>
       </div>
@@ -414,7 +420,7 @@ export function Flip({ amt }) {
 function draw(cv, s) {
   if (!cv) return
   const x = cv.getContext('2d'), W = cv.width, H = cv.height, pad = 36
-  x.clearRect(0, 0, W, H); x.strokeStyle = '#ffffff12'; x.lineWidth = 1
+  x.clearRect(0, 0, W, H); x.strokeStyle = '#ffffff26'; x.lineWidth = 1
   for (let k = 1; k < 5; k++) { x.beginPath(); x.moveTo(0, (H * k) / 5); x.lineTo(W, (H * k) / 5); x.stroke() }
   if (s.st === 'bet') return
   const top = Math.max(2, s.m * 1.3), tt = Math.max(4, s.t * 1.12)
@@ -512,12 +518,14 @@ export function Crash({ amt }) {
       <div className="bar" style={{ marginBottom: 8 }}>
         <i style={{ width: s.st === 'bet' ? 100 - s.p * 100 + '%' : crashed ? 100 - s.np * 100 + '%' : '100%', background: crashed ? 'var(--bad)' : 'var(--ac)' }} />
       </div>
-      <div style={{ position: 'relative' }}>
-        <canvas ref={cv} width="800" height="590" style={{ width: '100%', height: 'auto', display: 'block' }} />
-        <div className="big" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', fontSize: 56, pointerEvents: 'none' }}>
+      <div className="crash-stage">
+        <canvas className="crash-canvas" ref={cv} width="800" height="590" />
+        <div className="crash-stage-overlay">
+          <div className="big">
           {s.st === 'bet'
             ? <><div style={{ fontSize: 72 }}>{s.left}</div><div className="small">Betting open. Place your bet</div></>
             : <><div style={{ color: crashed ? 'var(--bad)' : s.m >= 10 ? '#ffd54f' : 'var(--ac)' }}>{f(s.m)}×</div><div className="small">{crashed ? `Crashed. Next round in ${s.nx}s` : 'Flying'}</div></>}
+          </div>
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>

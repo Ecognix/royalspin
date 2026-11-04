@@ -213,6 +213,7 @@ export function Notifications() {
   const [notifs, setNotifs] = useState([])
 
   const [toasts, setToasts] = useState([])
+  const [adminTheme, setAdminTheme] = useState(false)
 
 
 
@@ -222,6 +223,7 @@ export function Notifications() {
 
       const n = e.detail
 
+      setAdminTheme(Boolean(document.querySelector('.admin-shell')))
       setNotifs((prev) => [...prev, { ...n, id: Date.now() + Math.random() }])
 
     }
@@ -230,6 +232,7 @@ export function Notifications() {
 
       const id = Date.now() + Math.random()
 
+      setAdminTheme(Boolean(document.querySelector('.admin-shell')))
       setToasts((prev) => [...prev, { id, text: e.detail }])
 
       setTimeout(() => {
@@ -260,7 +263,7 @@ export function Notifications() {
 
   return (
 
-    <>
+    <div className={`player-notification-layer${adminTheme ? ' admin-theme' : ''}`}>
 
       {notifs.map((n) => (
 
@@ -278,7 +281,7 @@ export function Notifications() {
 
       ))}
 
-    </>
+    </div>
 
   )
 
@@ -350,7 +353,7 @@ function NotificationCard({ notif, onDismiss }) {
 
     return (
 
-      <div style={{ 
+      <div className="winloss-card" style={{
 
         minWidth: 280,
 
@@ -373,6 +376,7 @@ function NotificationCard({ notif, onDismiss }) {
         transform: 'translateX(-50%)',
 
         background: 'var(--c1)',
+        color: 'var(--tx)',
 
         borderRadius: '10px',
 
@@ -380,7 +384,7 @@ function NotificationCard({ notif, onDismiss }) {
 
         bottom: 'auto',
 
-        border: 'none',
+        border: '1px solid var(--ln)',
 
         display: 'flex',
 
@@ -446,7 +450,7 @@ function NotificationCard({ notif, onDismiss }) {
 
         {/* Animated timeout progress bar - joined to bottom edge */}
 
-        <div style={{ 
+        <div className="winloss-card" style={{
 
           height: 3, 
 
@@ -517,6 +521,7 @@ function NotificationCard({ notif, onDismiss }) {
       transform: 'translateX(-50%)',
 
       background: 'var(--c1)',
+      color: 'var(--tx)',
 
       borderRadius: '10px',
 
@@ -524,7 +529,7 @@ function NotificationCard({ notif, onDismiss }) {
 
       bottom: 'auto',
 
-      border: 'none',
+      border: '1px solid var(--ln)',
 
       display: 'flex',
 
