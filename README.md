@@ -42,6 +42,9 @@ Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.loca
 (see `.env.example`) and create the database tables using `supabase-schema.sql`.
 Run `support_messages_migration.sql` in the Supabase SQL Editor for all databases to enable
 separate support conversations and retain any existing message history.
+For existing databases, run `withdrawal_platform_fee_migration.sql` before deploying the
+withdrawal fee; withdrawals are charged 5% (₹50 per ₹1,000), deducted from the requested
+amount so the player receives the remaining 95%.
 
 ## Deposit and referral rules
 For an existing Supabase database, run `referrals_and_deposit_rules_migration.sql` in the
@@ -50,7 +53,3 @@ Supabase SQL Editor before deploying the referral signup flow. New databases sho
 bonus to the wallet and requires wagering twice the deposit amount before withdrawal. No
 new deposit or welcome bonus is added to the bonus balance. Referral links award the
 referring player 5% of each referred player's approved deposit.
-
-Run `bet_fee_migration.sql` in the Supabase SQL Editor for an existing database before
-deploying bet fees. Every completed ₹500 of cumulative bet stakes deducts ₹15 from the
-wallet; partial progress carries over between bets.

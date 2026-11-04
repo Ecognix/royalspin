@@ -144,8 +144,7 @@ import {
 
   createRequest, getAllUsers, getAllBets, getAllRequests,
 
-  updateRequest, updateUser, updateConfig, isAdminPhone, supabase,
-  BET_FEE_WAGER_STEP, BET_FEE_AMOUNT
+  updateRequest, updateUser, updateConfig, isAdminPhone, supabase
 
 } from '../lib/supabase-db'
 
@@ -305,8 +304,7 @@ function WinGoResultCard({ notif, onDismiss }) {
       <section className={`win-go-result-card ${isWin ? 'win' : 'loss'}`} role="dialog" aria-modal="true" aria-label="WIN GO result">
         <button type="button" className="win-go-result-close" onClick={onDismiss} aria-label="Close result">×</button>
         <div className="win-go-result-medallion" aria-hidden="true">✦</div>
-        <h2>{isWin ? 'Congratulations' : isBalancedLoss ? 'Balanced bets' : 'Sorry'}</h2>
-        {notif.balancedSizeBets && <span className="win-go-balanced-tag">Equal Big &amp; Small bets</span>}
+        <h2>{isWin ? 'Congratulations' : isBalancedLoss ? 'Round complete' : 'Sorry'}</h2>
         <div className="win-go-result-tags">
           <span>Lottery result</span>
           <b className={`win-go-result-chip ${resultTone}`}>{resultColor}</b>
@@ -1004,7 +1002,7 @@ function Main() {
 
     <>
 
-      <div className={view === 'admin' ? 'player-shell admin-shell' : 'player-shell'}>
+      <div className={`${view === 'admin' ? 'player-shell admin-shell' : 'player-shell'}${view === 'support' ? ' support-fullscreen' : ''}`}>
 
       {view !== 'admin' && <header className="player-header">
 
@@ -1076,7 +1074,6 @@ function Main() {
             {game === 'color' && <ColorPeriodTabs value={colorPeriodKey} onChange={setColorPeriodKey} />}
 
                         <label>Bet amount</label>
-            <p className="small">₹{BET_FEE_AMOUNT} is deducted for every completed ₹{BET_FEE_WAGER_STEP} of cumulative bets. Partial amounts carry over.</p>
             <div className="row">
               <input type="number" min="1" max="100000" value={amt} onChange={(e) => setAmt(e.target.value)} />
               <button type="button" onClick={() => setAmt(Math.max(1, Math.floor((+amt || 10) / 2)))}>½</button>
@@ -1147,7 +1144,7 @@ function Main() {
         </button>
       )}
 
-      {view !== 'admin' && (
+      {view !== 'admin' && view !== 'support' && (
         <nav className="player-nav" aria-label="Main navigation">
           {[
             ['home', 'home', 'Home'],

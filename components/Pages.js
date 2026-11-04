@@ -4,7 +4,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { 
   db, toast, f, createRequest, refreshUser, changePassword,
   supabase, REFERRAL_REWARD_PERCENT, DEPOSIT_APPROVAL_BONUS_PERCENT,
-  BET_FEE_WAGER_STEP, BET_FEE_AMOUNT, MIN_WITHDRAWAL_AMOUNT
+  calculateWithdrawalFee, WITHDRAWAL_FEE_PERCENT, MIN_WITHDRAWAL_AMOUNT
 } from '../lib/supabase-db'
 import { GAMES } from './meta'
 
@@ -112,16 +112,9 @@ export function Wallet({ u, me, initialTab = 'd' }) {
   }
 
   const link = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=RoyalSpin&am=${dq}&cu=INR`
-
-  async function copyDepositUpi() {
-    try {
-      await navigator.clipboard.writeText(upiId)
-      toast('UPI ID copied')
-    } catch (error) {
-      console.error('Deposit UPI copy error:', error)
-      toast('Could not copy UPI ID')
-    }
-  }
+  const withdrawalAmount = Math.max(0, Number(wa) || 0)
+  const withdrawalFee = calculateWithdrawalFee(withdrawalAmount)
+  const withdrawalPayout = Number((withdrawalAmount - withdrawalFee).toFixed(2))
 
   async function dsub() {
     if (!/^\d{12}$/.test(utr.trim())) return toast('UTR must be 12 digits')
@@ -134,7 +127,7 @@ export function Wallet({ u, me, initialTab = 'd' }) {
   }
 
   async function wsub() {
-    const a = +wa
+    const a = Number((Math.round((Number(wa) || 0) * 100) / 100).toFixed(2))
     if (Number(u.bonus_needed || 0) > 0) {
       return toast('Wager ₹' + f(u.bonus_needed) + ' more before withdrawing')
     }
@@ -159,7 +152,7 @@ export function Wallet({ u, me, initialTab = 'd' }) {
     setBankAcc('')
     setBankIfsc('')
     setBankHolder('')
-    toast('Withdrawal requested: ₹' + f(a) + ' held')
+    toast(`Withdrawal requested: ₹${f(a)} · ₹${f(withdrawalFee)} fee · ₹${f(withdrawalPayout)} payout`)
     await refreshUser()
     fetchData()
   }
@@ -209,10 +202,6 @@ export function Wallet({ u, me, initialTab = 'd' }) {
           <div className="wallet-qr-box">
             <b>Scan with any UPI app</b>
             <div><QRCodeSVG value={link} size={180} /></div>
-            <div className="wallet-upi">
-              <span>{upiId}</span>
-              <button type="button" onClick={copyDepositUpi}>Copy UPI ID</button>
-            </div>
           </div>
 
           <label className="wallet-field-label">12-digit UTR / transaction ID</label>
@@ -220,7 +209,7 @@ export function Wallet({ u, me, initialTab = 'd' }) {
           <button className="wallet-submit" onClick={dsub}>Submit deposit request</button>
           <div className="wallet-instructions">
             <b>Deposit instructions</b>
-            Pay the selected amount to the UPI ID shown above, then submit the 12-digit UTR. Your request will appear in history while the team verifies it. Approved deposits receive the configured 50% wallet bonus; a 2× deposit wager is required before withdrawal.
+            Scan the QR code with a UPI app, then submit the 12-digit UTR. Your request will appear in history while the team verifies it. Approved deposits receive the configured 50% wallet bonus; a 2× deposit wager is required before withdrawal.
           </div>
         </div>
       ) : (
@@ -265,12 +254,18 @@ export function Wallet({ u, me, initialTab = 'd' }) {
           </div>
           <input type="number" min={MIN_WITHDRAWAL_AMOUNT} value={wa} onChange={(e) => setWa(e.target.value)} placeholder="Minimum ₹1,000" />
           <p style={{ marginTop: 8, fontSize: 12 }}>Minimum withdrawal: ₹{f(MIN_WITHDRAWAL_AMOUNT)}</p>
+          <div className="wallet-withdrawal-fee">
+            <span>Platform fee ({WITHDRAWAL_FEE_PERCENT}%)</span><b>₹{f(withdrawalFee)}</b>
+            <span>You will receive</span><b>₹{f(withdrawalPayout)}</b>
+          </div>
           <button
             className="wallet-submit"
             onClick={wsub}
             disabled={Number(u.bonus_needed || 0) > 0}
           >
-            {Number(u.bonus_needed || 0) > 0 ? '🔒 Withdrawal locked' : 'Request withdrawal'}
+            {Number(u.bonus_needed || 0) > 0
+              ? '🔒 Withdrawal locked'
+              : withdrawalAmount > 0 ? `Request withdrawal · ₹${f(withdrawalPayout)} net` : 'Request withdrawal'}
           </button>
         </div>
       )}
@@ -287,6 +282,9 @@ export function Wallet({ u, me, initialTab = 'd' }) {
               <div>
                 <b>{request.type === 'deposit' ? 'Deposit request' : 'Withdrawal request'} · ₹{f(request.amount)}</b>
                 <small>{new Date(request.created_at).toLocaleString()} · {request.upi_id || request.utr || 'No reference'}</small>
+                {request.type === 'withdraw' && Number(request.withdrawal_fee || 0) > 0 && (
+                  <small>Platform fee ₹{f(request.withdrawal_fee)} · Net payout ₹{f(request.payout_amount)}</small>
+                )}
               </div>
               <span className={`wallet-request-status status-${status.className}`}>{status.label}</span>
             </div>
@@ -513,7 +511,7 @@ export function ActivityHistory({ u, initialTab = 'bets' }) {
       const [betResult, transactionResult, requestResult] = await Promise.all([
         supabase.from('bets').select('id,game,amount,win_amount,details,created_at').eq('user_id', u.id).order('created_at', { ascending: false }).limit(200),
         supabase.from('transactions').select('id,type,amount,balance_after,details,created_at').eq('user_id', u.id).order('created_at', { ascending: false }).limit(200),
-        supabase.from('requests').select('id,type,amount,status,upi_id,created_at').eq('user_id', u.id).in('type', ['deposit', 'withdraw']).order('created_at', { ascending: false }).limit(200)
+        supabase.from('requests').select('*').eq('user_id', u.id).in('type', ['deposit', 'withdraw']).order('created_at', { ascending: false }).limit(200)
       ])
       const firstError = betResult.error || transactionResult.error || requestResult.error
       if (firstError) {
@@ -655,6 +653,9 @@ export function ActivityHistory({ u, initialTab = 'bets' }) {
               </div>
               <div className="history-record-details">
                 <div><span>Detail</span><b>{row.upi_id || 'No reference provided'}</b></div>
+                {tab === 'withdraw' && Number(row.withdrawal_fee || 0) > 0 && (
+                  <div><span>Platform fee</span><b>₹{f(row.withdrawal_fee)} · payout ₹{f(row.payout_amount)}</b></div>
+                )}
                 <div><span>Time</span><b>{new Date(row.created_at).toLocaleString()}</b></div>
                 <div><span>Status</span><b className={`history-status status-${status.className}`}>{status.label}</b></div>
               </div>
@@ -1029,13 +1030,15 @@ export function Support({ u, onBack }) {
   const [conversations, setConversations] = useState([])
   const [previews, setPreviews] = useState({})
   const [selectedConversationId, setSelectedConversationId] = useState(null)
-  const [showingThread, setShowingThread] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [messages, setMessages] = useState([])
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const [creating, setCreating] = useState(false)
   const [loadingConversations, setLoadingConversations] = useState(true)
   const [loadingMessages, setLoadingMessages] = useState(false)
+  const [legacyMode, setLegacyMode] = useState(false)
+  const [chatNotice, setChatNotice] = useState('')
   const [chatError, setChatError] = useState('')
   const messagesEndRef = useRef(null)
 
@@ -1061,9 +1064,38 @@ export function Support({ u, onBack }) {
         .eq('user_id', u.id)
         .order('updated_at', { ascending: false })
         .limit(100)
-      if (error) throw error
+      if (error) {
+        const missingConversationSchema = ['42703', 'PGRST204', 'PGRST205'].includes(error.code)
+          && /support_conversations|conversation_id/i.test(error.message || '')
+        if (!missingConversationSchema) throw error
+
+        const { data: legacyMessages, error: legacyError } = await supabase
+          .from('support_messages')
+          .select('id, sender_role, message, created_at')
+          .eq('user_id', u.id)
+          .order('created_at', { ascending: true })
+        if (legacyError) throw legacyError
+
+        const id = `legacy:${u.id}`
+        const history = legacyMessages || []
+        const firstMessage = history[0]
+        const lastMessage = history[history.length - 1]
+        setLegacyMode(true)
+        setConversations([{
+          id,
+          created_at: firstMessage?.created_at || new Date().toISOString(),
+          updated_at: lastMessage?.created_at || new Date().toISOString()
+        }])
+        setPreviews(lastMessage ? { [id]: lastMessage } : {})
+        setSelectedConversationId(id)
+        setChatNotice('Your existing support chat is available. Apply support_messages_migration.sql to enable separate new chats.')
+        setChatError('')
+        return
+      }
 
       const rows = data || []
+      setLegacyMode(false)
+      setChatNotice('')
       setConversations(rows)
       setSelectedConversationId(current => (
         rows.some(conversation => conversation.id === current) ? current : rows[0]?.id || null
@@ -1108,12 +1140,14 @@ export function Support({ u, onBack }) {
     }
     if (showLoading) setLoadingMessages(true)
     try {
-      const { data, error } = await supabase
+      let messagesQuery = supabase
         .from('support_messages')
         .select('id, sender_role, message, created_at')
         .eq('user_id', u.id)
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true })
+      if (!conversationId.startsWith('legacy:')) {
+        messagesQuery = messagesQuery.eq('conversation_id', conversationId)
+      }
+      const { data, error } = await messagesQuery.order('created_at', { ascending: true })
       if (error) throw error
       setMessages(data || [])
       setChatError('')
@@ -1141,6 +1175,10 @@ export function Support({ u, onBack }) {
 
   async function createConversation() {
     if (!u?.id || creating) return
+    if (legacyMode) {
+      setChatNotice('Separate chats need a database update. Your current support conversation remains available.')
+      return
+    }
     setCreating(true)
     try {
       const { data, error } = await supabase
@@ -1151,7 +1189,7 @@ export function Support({ u, onBack }) {
       if (error) throw error
       setConversations(current => [data, ...current.filter(item => item.id !== data.id)])
       setSelectedConversationId(data.id)
-      setShowingThread(true)
+      setHistoryOpen(false)
       setMessages([])
       setDraft('')
       setChatError('')
@@ -1168,12 +1206,15 @@ export function Support({ u, onBack }) {
     if (!message || sending || loadingMessages || chatError || !u?.id || !selectedConversationId) return
     setSending(true)
     try {
-      const { error } = await supabase.from('support_messages').insert({
-        conversation_id: selectedConversationId,
+      const newMessage = {
         user_id: u.id,
         sender_role: 'user',
         message
-      })
+      }
+      if (!selectedConversationId.startsWith('legacy:')) {
+        newMessage.conversation_id = selectedConversationId
+      }
+      const { error } = await supabase.from('support_messages').insert(newMessage)
       if (error) throw error
 
       setDraft('')
@@ -1192,16 +1233,23 @@ export function Support({ u, onBack }) {
 
   return (
     <div className="support-page">
-      <div className="support-page-heading">
-        <button type="button" onClick={onBack}>‹ Back</button>
-        <div><h2>Customer support</h2><p>Start a new conversation or continue an earlier chat.</p></div>
-      </div>
-      <div className={`support-layout ${selectedConversationId ? 'has-chat' : ''} ${showingThread ? 'mobile-thread-open' : ''}`}>
-        <aside className="support-history">
-          <div className="support-history-heading">
-            <b>Chat history</b>
-            <button type="button" onClick={createConversation} disabled={creating}>{creating ? 'Starting…' : '+ New chat'}</button>
+      <section className="support-chat-card">
+        <header className="support-header">
+          <button type="button" className="support-back" onClick={onBack} aria-label="Back to the site">‹</button>
+          <div className="support-avatar">♠</div>
+          <div className="support-header-copy">
+            <b>Royal Spin Support</b>
+            <small>We’re here to help</small>
           </div>
+          <button type="button" className="support-history-toggle" onClick={() => setHistoryOpen(open => !open)}>
+            {historyOpen ? 'Close history' : `History (${conversations.length})`}
+          </button>
+          <button type="button" className="support-new-chat" onClick={createConversation} disabled={creating || legacyMode}>
+            {creating ? 'Starting…' : '+ New chat'}
+          </button>
+        </header>
+        {historyOpen && (
+          <aside className="support-history-drawer" aria-label="Previous support conversations">
           {loadingConversations && !conversations.length && <div className="support-state">Loading your chats…</div>}
           {!loadingConversations && !conversations.length && !chatError && <div className="support-state">No previous chats yet.</div>}
           {conversations.map(conversation => {
@@ -1211,7 +1259,11 @@ export function Support({ u, onBack }) {
                 type="button"
                 key={conversation.id}
                 className={`support-conversation ${selectedConversationId === conversation.id ? 'selected' : ''}`}
-                onClick={() => { setSelectedConversationId(conversation.id); setShowingThread(true) }}
+                onClick={() => {
+                  setSelectedConversationId(conversation.id)
+                  setHistoryOpen(false)
+                  setMessages([])
+                }}
               >
                 <b>Support chat</b>
                 <span>{preview?.message || 'New conversation'}</span>
@@ -1219,63 +1271,50 @@ export function Support({ u, onBack }) {
               </button>
             )
           })}
-        </aside>
-        <section className="support-thread" aria-label="Customer support chat">
-          {selectedConversationId ? (
-            <>
-              <div className="support-thread-heading">
-                <button type="button" className="support-history-back" onClick={() => setShowingThread(false)} aria-label="Back to chat history">‹</button>
-                <div><b>Royal Spin Support</b><small>Our team will reply in this conversation.</small></div>
-              </div>
-              <div className="support-messages" aria-live="polite">
-                {!messages.length && !loadingMessages && !chatError && (
-                  <div className="support-welcome">Hi! Send us a message and our team will get back to you here.</div>
-                )}
-                {loadingMessages && !messages.length && <div className="support-state">Loading conversation…</div>}
-                {messages.map(item => {
-                  const fromPlayer = item.sender_role === 'user'
-                  return (
-                    <div key={item.id} className={'support-message ' + (fromPlayer ? 'support-message-player' : 'support-message-team')}>
-                      <div>{item.message}</div>
-                      <time>{new Date(item.created_at).toLocaleString()}</time>
-                    </div>
-                  )
-                })}
-                {chatError && <div className="support-error" role="alert">{chatError}</div>}
-                <div ref={messagesEndRef} />
-              </div>
-              <form className="support-compose" onSubmit={event => { event.preventDefault(); send() }}>
-                <textarea
-                  value={draft}
-                  onChange={event => setDraft(event.target.value)}
-                  onKeyDown={event => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault()
-                      send()
-                    }
-                  }}
-                  placeholder="Type a message…"
-                  rows={1}
-                  maxLength={2000}
-                  disabled={loadingMessages || !!chatError}
-                  aria-label="Type a support message"
-                />
-                <button type="submit" className="support-send" disabled={sending || loadingMessages || !!chatError || !draft.trim()} aria-label="Send message">
-                  {sending ? '…' : '➤'}
-                </button>
-              </form>
-            </>
-          ) : (
-            <div className="support-empty">
-              <div className="support-avatar">♠</div>
-              <b>How can we help?</b>
-              <p>Select a chat from your history or start a new one.</p>
-              <button type="button" onClick={createConversation} disabled={creating}>{creating ? 'Starting…' : 'Start a new chat'}</button>
-              {chatError && <div className="support-error" role="alert">{chatError}</div>}
-            </div>
+          </aside>
+        )}
+        <div className="support-messages" aria-live="polite">
+          {chatNotice && <div className="support-state">{chatNotice}</div>}
+          {loadingMessages && !messages.length && <div className="support-state">Loading conversation…</div>}
+          {!selectedConversationId && !loadingConversations && !chatError && (
+            <div className="support-welcome">Hi! Start a new chat and our team will get back to you here.</div>
           )}
-        </section>
-      </div>
+          {selectedConversationId && !messages.length && !loadingMessages && !chatError && (
+            <div className="support-welcome">Hi! Send us a message and our team will get back to you here.</div>
+          )}
+          {messages.map(item => {
+            const fromPlayer = item.sender_role === 'user'
+            return (
+              <div key={item.id} className={'support-message ' + (fromPlayer ? 'support-message-player' : 'support-message-team')}>
+                <div>{item.message}</div>
+                <time>{new Date(item.created_at).toLocaleString()}</time>
+              </div>
+            )
+          })}
+          {chatError && <div className="support-error" role="alert">{chatError}</div>}
+          <div ref={messagesEndRef} />
+        </div>
+        <form className="support-compose" onSubmit={event => { event.preventDefault(); send() }}>
+          <textarea
+            value={draft}
+            onChange={event => setDraft(event.target.value)}
+            onKeyDown={event => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault()
+                send()
+              }
+            }}
+            placeholder={selectedConversationId ? 'Type a message…' : 'Start a new chat to send a message'}
+            rows={1}
+            maxLength={2000}
+            disabled={!selectedConversationId || loadingMessages || !!chatError}
+            aria-label="Type a support message"
+          />
+          <button type="submit" className="support-send" disabled={!selectedConversationId || sending || loadingMessages || !!chatError || !draft.trim()} aria-label="Send message">
+            {sending ? '…' : '➤'}
+          </button>
+        </form>
+      </section>
     </div>
   )
 }
@@ -1319,10 +1358,6 @@ export function Wager({ u, me }) {
         <i style={{ width: Math.min(100, ((u.total_wagered || 0) / Math.max(1, (u.total_wagered || 0) + (u.bonus_needed || 0))) * 100) + '%' }} />
       </div>
       <p className="small">Total wagered so far: <b>₹{f(u.total_wagered || 0)}</b></p>
-      <p className="small">
-        Bet fee: ₹{BET_FEE_AMOUNT} per completed ₹{BET_FEE_WAGER_STEP} wagered.
-        ₹{f(u.bet_fee_progress || 0)} counted toward the next fee.
-      </p>
     </div>
   )
 }
@@ -1434,7 +1469,7 @@ export function NotificationCenter({ u, announcements = [], initialTab = 'notifi
       setLoadError('')
       try {
         const [requestResult, transactionResult] = await Promise.all([
-          supabase.from('requests').select('id,type,amount,status,created_at,updated_at')
+          supabase.from('requests').select('*')
             .eq('user_id', u.id).in('type', ['deposit', 'withdraw']).order('updated_at', { ascending: false }).limit(100),
           supabase.from('transactions').select('id,type,amount,created_at')
             .eq('user_id', u.id).order('created_at', { ascending: false }).limit(100)
@@ -1462,13 +1497,15 @@ export function NotificationCenter({ u, announcements = [], initialTab = 'notifi
       const type = String(request.type).toLowerCase()
       const status = String(request.status).toLowerCase()
       const amount = Number(request.amount || 0)
+      const fee = Number(request.withdrawal_fee || 0)
+      const payout = Number(request.payout_amount || (amount - fee))
       const isDeposit = type === 'deposit'
       const statusLabel = status === 'approved' ? 'completed' : status
       const heading = `${isDeposit ? 'Deposit' : 'Withdrawal'} ${statusLabel}`
       const body = status === 'approved'
         ? isDeposit
         ? `Your deposit of ₹${f(amount)} was completed.`
-        : `Your withdrawal request for ₹${f(amount)} was completed.`
+        : `Your withdrawal of ₹${f(amount)} was completed. ₹${f(fee)} platform fee; ₹${f(payout)} paid.`
         : `Your ${isDeposit ? 'deposit' : 'withdrawal'} request for ₹${f(amount)} was rejected.`
       return { id: `request-${request.id}`, heading, body, created_at: request.updated_at || request.created_at }
     })

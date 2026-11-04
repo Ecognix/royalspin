@@ -17,7 +17,6 @@ CREATE TABLE users (
   bonus_balance DECIMAL(15,2) DEFAULT 0,
   bonus_needed DECIMAL(15,2) DEFAULT 0,
   total_wagered DECIMAL(15,2) DEFAULT 0,
-  bet_fee_progress DECIMAL(5,2) NOT NULL DEFAULT 0,
   total_wins INT DEFAULT 0,
   total_bets INT DEFAULT 0,
   pnl DECIMAL(15,2) DEFAULT 0,
@@ -57,6 +56,8 @@ CREATE TABLE requests (
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   type VARCHAR(20) NOT NULL, -- 'deposit' or 'withdraw'
   amount DECIMAL(15,2) NOT NULL,
+  withdrawal_fee DECIMAL(15,2) NOT NULL DEFAULT 0,
+  payout_amount DECIMAL(15,2) NOT NULL DEFAULT 0,
   status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'approved', 'rejected'
   upi_id VARCHAR(100),
   utr VARCHAR(100),

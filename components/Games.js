@@ -2,7 +2,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   useDB, place, pay, cancelCrashBet, toast, notify, notifySubscribers, f, user, supabase,
-  BET_FEE_WAGER_STEP, BET_FEE_AMOUNT
 } from '../lib/supabase-db'
 import { resolveColorPeriod } from '../lib/tick'
 import {
@@ -547,7 +546,7 @@ export function Crash({ amt }) {
         <button className={'p' + (co ? ' cashout-button' : '')} style={{ ...FULL, flex: 1, background: co ? '#168a4b' : canCancel ? 'var(--bad)' : undefined }} onClick={act}>{label}</button>
         {canCancel && <button className="p cashout-button" style={{ ...FULL, flex: 1, background: '#168a4b' }} onClick={cancelBet}>Cancel Bet</button>}
       </div>
-      <p className="small">A ₹{BET_FEE_AMOUNT} fee is charged for each completed ₹{BET_FEE_WAGER_STEP} of cumulative bets. Multiplier begins at 1.00× and accelerates smoothly. Cash out anytime before the crash to win your bet multiplied by the live flight rate.</p>
+      <p className="small">Multiplier begins at 1.00× and accelerates smoothly. Cash out anytime before the crash to win your bet multiplied by the live flight rate.</p>
     </>
   )
 }

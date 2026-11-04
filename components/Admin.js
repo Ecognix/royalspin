@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import {
   useDB, adminLogin, toast, f, addtx, supabase, updateConfig,
-  DEPOSIT_APPROVAL_BONUS_PERCENT, DEPOSIT_WAGER_MULTIPLIER, REFERRAL_REWARD_PERCENT
+  DEPOSIT_APPROVAL_BONUS_PERCENT, DEPOSIT_WAGER_MULTIPLIER, REFERRAL_REWARD_PERCENT,
+  calculateWithdrawalFee
 } from '../lib/supabase-db'
 import { GAMES } from './meta'
 import { Notifications } from './App'
@@ -707,7 +708,25 @@ function Panel({ onOut }) {
       .select('id, user_id, conversation_id, sender_role, message, created_at, users:user_id(phone,name)')
       .order('created_at', { ascending: true })
     if (error) {
-      console.error('fetchSupportMessages error:', error)
+      const missingConversationSchema = ['42703', 'PGRST204', 'PGRST205'].includes(error.code)
+        && /support_conversations|conversation_id/i.test(error.message || '')
+      if (!missingConversationSchema) {
+        console.error('fetchSupportMessages error:', error)
+        return
+      }
+
+      const { data: legacyMessages, error: legacyError } = await supabase
+        .from('support_messages')
+        .select('id, user_id, sender_role, message, created_at, users:user_id(phone,name)')
+        .order('created_at', { ascending: true })
+      if (legacyError) {
+        console.error('fetchSupportMessages legacy load error:', legacyError)
+        return
+      }
+      setSupportMessages((legacyMessages || []).map(message => ({
+        ...message,
+        conversation_id: `legacy:${message.user_id}`
+      })))
       return
     }
     setSupportMessages(data || [])
@@ -1049,9 +1068,17 @@ function Panel({ onOut }) {
       }
 
       const newStatus = ok ? 'approved' : 'rejected'
+      const finalRequestUpdate = {
+        status: newStatus,
+        updated_at: new Date().toISOString()
+      }
+      if (isWithdraw && !ok) {
+        finalRequestUpdate.withdrawal_fee = 0
+        finalRequestUpdate.payout_amount = 0
+      }
       const { data: finalizedRequest, error: statusError } = await supabase
         .from('requests')
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .update(finalRequestUpdate)
         .eq('id', id)
         .eq('status', 'processing')
         .select('id')
@@ -1068,7 +1095,9 @@ function Panel({ onOut }) {
       } else if (isWithdraw && !ok) {
         toast(followUpWarning || ('Withdrawal rejected & ₹' + f(reqAmount) + ' refunded'))
       } else if (isWithdraw && ok) {
-        toast('Withdrawal of ₹' + f(reqAmount) + ' approved')
+        const withdrawalFee = Number(r.withdrawal_fee ?? calculateWithdrawalFee(reqAmount))
+        const payoutAmount = Number(r.payout_amount ?? (reqAmount - withdrawalFee))
+        toast(`Withdrawal approved · pay ₹${f(payoutAmount)} after ₹${f(withdrawalFee)} platform fee`)
       } else {
         toast('Deposit rejected')
       }
@@ -1152,12 +1181,15 @@ function Panel({ onOut }) {
     if (!conversationMessage || !message || sendingSupportReply) return
     setSendingSupportReply(true)
     try {
-      const { error } = await supabase.from('support_messages').insert({
-        conversation_id: supportConversationId,
+      const reply = {
         user_id: conversationMessage.user_id,
         sender_role: 'admin',
         message
-      })
+      }
+      if (!supportConversationId.startsWith('legacy:')) {
+        reply.conversation_id = supportConversationId
+      }
+      const { error } = await supabase.from('support_messages').insert(reply)
       if (error) throw error
       setSupportReply('')
       await fetchSupportMessages()
@@ -1228,6 +1260,10 @@ function Panel({ onOut }) {
     const userPhone = r.users?.phone || usersList.find(x => x.id === r.user_id)?.phone || 'Unknown'
     const userBal = r.users?.balance ?? usersList.find(x => x.id === r.user_id)?.balance ?? 0
     const userName = r.users?.name || usersList.find(x => x.id === r.user_id)?.name
+    const withdrawalFee = Number(r.withdrawal_fee || 0)
+    const payoutAmount = status === 'rejected'
+      ? null
+      : Number(r.payout_amount || (Number(r.amount || 0) - withdrawalFee))
 
     const badgeColor = isApproved ? 'var(--ac)' : isPending || isProcessing ? '#f59e0b' : 'var(--bad)'
     const badgeBg = isApproved ? '#2ee67a22' : isPending || isProcessing ? '#f59e0b22' : '#ff5a5a22'
@@ -1280,6 +1316,11 @@ function Panel({ onOut }) {
               <div style={{ fontWeight: 800, fontSize: 15, color: isDep ? 'var(--ac)' : '#fff' }}>
                 ₹{f(r.amount)}
               </div>
+              {!isDep && (
+                <div className="small" style={{ color: 'var(--mut)', fontSize: 10 }}>
+                  Fee ₹{f(withdrawalFee)} · Pay {payoutAmount == null ? '—' : `₹${f(payoutAmount)}`}
+                </div>
+              )}
               <span style={{ 
                 fontSize: 10, 
                 fontWeight: 700, 
@@ -1353,6 +1394,18 @@ function Panel({ onOut }) {
                 <span className="small" style={{ color: 'var(--mut)' }}>Player Balance</span>
                 <div style={{ fontWeight: 700 }}>₹{f(userBal)}</div>
               </div>
+              {!isDep && (
+                <>
+                  <div>
+                    <span className="small" style={{ color: 'var(--mut)' }}>Platform Fee</span>
+                    <div style={{ fontWeight: 700 }}>₹{f(withdrawalFee)}</div>
+                  </div>
+                  <div>
+                    <span className="small" style={{ color: 'var(--mut)' }}>Net Payout</span>
+                    <div style={{ fontWeight: 700 }}>{payoutAmount == null ? '—' : `₹${f(payoutAmount)}`}</div>
+                  </div>
+                </>
+              )}
               <div>
                 <span className="small" style={{ color: 'var(--mut)' }}>{isDep ? 'UTR / Txn Ref' : 'Withdrawal UPI / Details'}</span>
                 {isDep ? (
@@ -1659,58 +1712,75 @@ function Panel({ onOut }) {
 
           {/* TAB 5: SUPPORT */}
           {at === 'support' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 0.8fr) minmax(260px, 1.5fr)', gap: 12 }}>
-              <div>
-                <b>Inbox ({supportConversations.length})</b>
-                <div style={{ marginTop: 10 }}>
-                  {!supportConversations.length && <p className="small">No support messages yet.</p>}
+            <div className="admin-support-layout">
+              <aside className="admin-support-inbox">
+                <div className="admin-support-inbox-heading">
+                  <div><b>Customer care inbox</b><small>{supportConversations.length} conversations</small></div>
+                  <button type="button" onClick={fetchSupportMessages} aria-label="Refresh support inbox">↻</button>
+                </div>
+                <div className="admin-support-conversation-list">
+                  {!supportConversations.length && <p className="small admin-support-empty-list">No support messages yet.</p>}
                   {supportConversations.map(conversation => {
                     const latest = conversation.messages[conversation.messages.length - 1]
                     const phone = latest.users?.phone || 'Unknown user'
                     const name = latest.users?.name
                     return (
                       <button
+                        type="button"
                         key={conversation.id}
                         onClick={() => setSupportConversationId(conversation.id)}
-                        style={{ width: '100%', textAlign: 'left', padding: 10, marginBottom: 6, background: conversation.id === supportConversationId ? 'var(--ac)' : 'var(--c2)', color: conversation.id === supportConversationId ? '#000' : 'inherit', borderRadius: 8 }}
+                        className={`admin-support-conversation ${conversation.id === supportConversationId ? 'selected' : ''}`}
+                        aria-pressed={conversation.id === supportConversationId}
                       >
-                        <div style={{ fontWeight: 700 }}>{name ? `${name} · ${phone}` : phone}</div>
-                        <div className="small" style={{ color: conversation.id === supportConversationId ? '#000' : 'var(--mut)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{latest.message}</div>
+                        <b>{name ? `${name} · ${phone}` : phone}</b>
+                        <span>{latest.message}</span>
+                        <time>{new Date(latest.created_at).toLocaleString()}</time>
                       </button>
                     )
                   })}
                 </div>
-              </div>
-              <div>
+              </aside>
+              <section className="admin-support-thread">
                 {!selectedSupport ? (
-                  <p className="small">Select a conversation to view and reply.</p>
+                  <div className="admin-support-empty-thread">
+                    <b>Select a conversation</b>
+                    <span>Choose a player chat from the inbox to read and reply.</span>
+                  </div>
                 ) : (
                   <>
-                    <b>{selectedSupport.messages[0]?.users?.name || 'User'} · {selectedSupport.messages[0]?.users?.phone || 'Unknown number'}</b>
-                    <div style={{ minHeight: 260, maxHeight: 460, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, margin: '10px 0' }}>
+                    <div className="admin-support-thread-heading">
+                      <div>
+                        <b>{selectedSupport.messages[0]?.users?.name || 'User'}</b>
+                        <small>{selectedSupport.messages[0]?.users?.phone || 'Unknown number'} · {selectedSupport.messages.length} messages</small>
+                      </div>
+                    </div>
+                    <div className="admin-support-messages" aria-live="polite">
                       {selectedSupport.messages.map(message => (
-                        <div key={message.id} style={{ alignSelf: message.sender_role === 'user' ? 'flex-start' : 'flex-end', maxWidth: '85%', padding: '9px 11px', borderRadius: 10, background: message.sender_role === 'user' ? 'var(--c2)' : 'var(--ac)', color: message.sender_role === 'user' ? 'inherit' : '#000' }}>
-                          <div style={{ fontSize: 13 }}>{message.message}</div>
-                          <div className="small" style={{ marginTop: 4, opacity: 0.7 }}>{message.sender_role} · {new Date(message.created_at).toLocaleString()}</div>
+                        <div key={message.id} className={`admin-support-message ${message.sender_role === 'user' ? 'from-player' : 'from-team'}`}>
+                          <div>{message.message}</div>
+                          <small>{message.sender_role} · {new Date(message.created_at).toLocaleString()}</small>
                         </div>
                       ))}
                     </div>
-                    <textarea value={supportReply} onChange={(e) => setSupportReply(e.target.value)} placeholder="Write a reply..." rows={3} maxLength={2000} />
-                    <button className="p" style={{ width: '100%', marginTop: 8 }} onClick={sendSupportReply} disabled={sendingSupportReply || !supportReply.trim()}>
-                      {sendingSupportReply ? 'Sending...' : 'Reply'}
-                    </button>
+                    <form className="admin-support-reply" onSubmit={event => { event.preventDefault(); sendSupportReply() }}>
+                      <textarea value={supportReply} onChange={(e) => setSupportReply(e.target.value)} placeholder="Write a helpful reply…" rows={3} maxLength={2000} aria-label="Write a support reply" />
+                      <button className="p" type="submit" disabled={sendingSupportReply || !supportReply.trim()}>
+                        {sendingSupportReply ? 'Sending…' : 'Send reply'}
+                      </button>
+                    </form>
                   </>
                 )}
-              </div>
+              </section>
             </div>
           )}
 
           {at === 'announcements' && (
-            <section>
+            <section className="admin-announcement-form">
               <b>Publish announcement</b>
               <p className="small">Published messages appear in every player’s Announcements tab.</p>
               <label>Heading</label>
               <input
+                className="admin-announcement-heading"
                 value={announcementHeading}
                 onChange={event => setAnnouncementHeading(event.target.value)}
                 maxLength={120}
@@ -1718,6 +1788,7 @@ function Panel({ onOut }) {
               />
               <label>Message</label>
               <textarea
+                className="admin-announcement-body"
                 value={announcementBody}
                 onChange={event => setAnnouncementBody(event.target.value)}
                 rows={5}
