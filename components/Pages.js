@@ -71,6 +71,7 @@ export function Wallet({ u, me, initialTab = 'd' }) {
 
   useEffect(() => {
     setTab(initialTab)
+    setReqPage(0)
   }, [initialTab])
 
   const fetchData = async () => {
@@ -158,8 +159,10 @@ export function Wallet({ u, me, initialTab = 'd' }) {
   }
 
   const PAGE_SIZE = 10
-  const reqTotalPages = Math.max(1, Math.ceil(requests.length / PAGE_SIZE))
-  const displayedReqs = requests.slice(reqPage * PAGE_SIZE, (reqPage + 1) * PAGE_SIZE)
+  const requestType = tab === 'd' ? 'deposit' : 'withdraw'
+  const filteredRequests = requests.filter(request => String(request.type || '').toLowerCase() === requestType)
+  const reqTotalPages = Math.max(1, Math.ceil(filteredRequests.length / PAGE_SIZE))
+  const displayedReqs = filteredRequests.slice(reqPage * PAGE_SIZE, (reqPage + 1) * PAGE_SIZE)
 
   const betTotalPages = Math.max(1, Math.ceil(bets.length / PAGE_SIZE))
   const displayedBets = bets.slice(betPage * PAGE_SIZE, (betPage + 1) * PAGE_SIZE)
@@ -171,8 +174,8 @@ export function Wallet({ u, me, initialTab = 'd' }) {
         <small>Available balance</small>
         <strong>{u.hide_balance ? '••••••' : `₹${f(u.balance)}`}</strong>
         <div className="wallet-tabs">
-          <button className={tab === 'd' ? 'selected' : ''} onClick={() => setTab('d')}>＋ Deposit</button>
-          <button className={tab === 'w' ? 'selected' : ''} onClick={() => setTab('w')}>↗ Withdraw</button>
+          <button className={tab === 'd' ? 'selected' : ''} onClick={() => { setTab('d'); setReqPage(0) }}>＋ Deposit</button>
+          <button className={tab === 'w' ? 'selected' : ''} onClick={() => { setTab('w'); setReqPage(0) }}>↗ Withdraw</button>
         </div>
       </div>
 
@@ -272,7 +275,7 @@ export function Wallet({ u, me, initialTab = 'd' }) {
 
       <div className="wallet-section wallet-history-section">
         <div className="wallet-history-heading">
-          <b>Deposit & withdrawal history</b>
+          <b>{tab === 'd' ? 'Deposit history' : 'Withdrawal history'}</b>
           <button onClick={fetchData}>Refresh</button>
         </div>
         {displayedReqs.map(request => {
@@ -290,7 +293,7 @@ export function Wallet({ u, me, initialTab = 'd' }) {
             </div>
           )
         })}
-        {!displayedReqs.length && <div className="activity-empty">No deposit or withdrawal requests yet</div>}
+        {!displayedReqs.length && <div className="activity-empty">No {requestType} requests yet</div>}
         {reqTotalPages > 1 && (
           <div className="activity-pagination">
             <button disabled={reqPage === 0} onClick={() => setReqPage(p => p - 1)}>Previous</button>
