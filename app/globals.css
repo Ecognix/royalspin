@@ -509,7 +509,7 @@ canvas{width:100%;height:auto;aspect-ratio:16/9;background:radial-gradient(circl
 .support-launcher svg{width:25px;height:25px}
 .support-page{height:100%;min-height:0;color:var(--tx)}
 .support-chat-card{display:flex;width:100%;height:100%;min-height:0;flex-direction:column;overflow:hidden;border:1px solid var(--ln);border-radius:16px;background:var(--c1);box-shadow:0 6px 24px #25334b12}
-.support-header{display:flex;flex:none;align-items:center;gap:10px;padding:12px 14px;background:#16844b;color:#fff}
+.support-header{position:relative;top:auto;left:auto;right:auto;z-index:auto;width:auto;display:flex;flex:none;align-items:center;gap:10px;padding:12px 14px;border:0;background:#16844b;color:#fff;box-shadow:none}
 .support-back{width:34px;height:34px;flex:none;padding:0;border-radius:50%;background:#ffffff1a;color:#fff;font-size:25px;line-height:1}
 .support-avatar{width:38px;height:38px;display:grid;place-items:center;flex:none;border-radius:50%;background:#ffffff24;font-size:19px}
 .support-header-copy{display:flex;min-width:0;flex:1;flex-direction:column;gap:3px}
