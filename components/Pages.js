@@ -8,6 +8,14 @@ import {
 } from '../lib/supabase-db'
 import { GAMES } from './meta'
 
+function playerRequestStatus(status) {
+  const normalized = String(status || 'pending').toLowerCase()
+  return {
+    label: normalized === 'approved' ? 'Completed' : normalized.charAt(0).toUpperCase() + normalized.slice(1),
+    className: normalized === 'approved' ? 'completed' : normalized
+  }
+}
+
 export function HubIcon({ name }) {
   const icons = {
     home: <><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" /></>,
@@ -272,15 +280,18 @@ export function Wallet({ u, me, initialTab = 'd' }) {
           <b>Deposit & withdrawal history</b>
           <button onClick={fetchData}>Refresh</button>
         </div>
-        {displayedReqs.map(request => (
-          <div className="wallet-request-row" key={request.id}>
-            <div>
-              <b>{request.type === 'deposit' ? 'Deposit request' : 'Withdrawal request'} · ₹{f(request.amount)}</b>
-              <small>{new Date(request.created_at).toLocaleString()} · {request.upi_id || request.utr || 'No reference'}</small>
+        {displayedReqs.map(request => {
+          const status = playerRequestStatus(request.status)
+          return (
+            <div className="wallet-request-row" key={request.id}>
+              <div>
+                <b>{request.type === 'deposit' ? 'Deposit request' : 'Withdrawal request'} · ₹{f(request.amount)}</b>
+                <small>{new Date(request.created_at).toLocaleString()} · {request.upi_id || request.utr || 'No reference'}</small>
+              </div>
+              <span className={`wallet-request-status status-${status.className}`}>{status.label}</span>
             </div>
-            <span className="wallet-request-status">{request.status || 'pending'}</span>
-          </div>
-        ))}
+          )
+        })}
         {!displayedReqs.length && <div className="activity-empty">No deposit or withdrawal requests yet</div>}
         {reqTotalPages > 1 && (
           <div className="activity-pagination">
@@ -546,7 +557,7 @@ export function ActivityHistory({ u, initialTab = 'bets' }) {
       : tab === 'deposit' ? 'Deposit history' : 'Withdrawal history'
   const filterOptions = tab === 'bets' ? [['all', 'All results'], ['wins', 'Wins'], ['losses', 'Losses']]
     : tab === 'transactions' ? [['all', 'All transactions'], ['credits', 'Credits'], ['debits', 'Debits']]
-      : [['all', 'All statuses'], ['pending', 'Pending'], ['approved', 'Approved'], ['rejected', 'Rejected']]
+      : [['all', 'All statuses'], ['pending', 'Pending'], ['approved', 'Completed'], ['rejected', 'Rejected']]
 
   function chooseTab(nextTab) {
     setTab(nextTab)
@@ -634,6 +645,7 @@ export function ActivityHistory({ u, initialTab = 'bets' }) {
               </article>
             )
           }
+          const status = playerRequestStatus(row.status)
           return (
             <article className="history-record" key={row.id}>
               <div className="history-record-heading">
@@ -644,7 +656,7 @@ export function ActivityHistory({ u, initialTab = 'bets' }) {
               <div className="history-record-details">
                 <div><span>Detail</span><b>{row.upi_id || 'No reference provided'}</b></div>
                 <div><span>Time</span><b>{new Date(row.created_at).toLocaleString()}</b></div>
-                <div><span>Status</span><b className={'history-status status-' + String(row.status || 'pending').toLowerCase()}>{row.status || 'Pending'}</b></div>
+                <div><span>Status</span><b className={`history-status status-${status.className}`}>{status.label}</b></div>
               </div>
             </article>
           )
@@ -1350,11 +1362,12 @@ export function NotificationCenter({ u, announcements = [], initialTab = 'notifi
       const status = String(request.status).toLowerCase()
       const amount = Number(request.amount || 0)
       const isDeposit = type === 'deposit'
-      const heading = `${isDeposit ? 'Deposit' : 'Withdrawal'} ${status}`
+      const statusLabel = status === 'approved' ? 'completed' : status
+      const heading = `${isDeposit ? 'Deposit' : 'Withdrawal'} ${statusLabel}`
       const body = status === 'approved'
         ? isDeposit
-          ? `Your deposit of ₹${f(amount)} was approved.`
-          : `Your withdrawal request for ₹${f(amount)} was approved.`
+        ? `Your deposit of ₹${f(amount)} was completed.`
+        : `Your withdrawal request for ₹${f(amount)} was completed.`
         : `Your ${isDeposit ? 'deposit' : 'withdrawal'} request for ₹${f(amount)} was rejected.`
       return { id: `request-${request.id}`, heading, body, created_at: request.updated_at || request.created_at }
     })

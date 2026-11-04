@@ -305,6 +305,7 @@ function WinGoResultCard({ notif, onDismiss }) {
         <button type="button" className="win-go-result-close" onClick={onDismiss} aria-label="Close result">×</button>
         <div className="win-go-result-medallion" aria-hidden="true">✦</div>
         <h2>{isWin ? 'Congratulations' : 'Sorry'}</h2>
+        {notif.balancedSizeBets && <span className="win-go-balanced-tag">Equal Big &amp; Small bets</span>}
         <div className="win-go-result-tags">
           <span>Lottery result</span>
           <b className={`win-go-result-chip ${resultTone}`}>{resultColor}</b>
