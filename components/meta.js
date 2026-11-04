@@ -1,6 +1,6 @@
 export const GAMES = [
   ['crash', 'Crash', '#7a1fa2,#ff4d6d'],
-  ['color', 'Color Trading', '#e53935,#8e44ad'],
+  ['color', 'WIN GO', '#e53935,#8e44ad'],
   ['dice', 'Dice', '#0f6bff,#12c2e9'],
   ['mines', 'Mines', '#0b8f5a,#9be15d'],
   ['limbo', 'Limbo', '#ff7a18,#ffd200'],

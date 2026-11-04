@@ -3,35 +3,48 @@
 export function GameHistory({ game }) {
   const [bets, setBets] = useState([])
   const [page, setPage] = useState(0)
+  const [totalBets, setTotalBets] = useState(0)
   const [loading, setLoading] = useState(false)
   const u = user()
 
-  const loadBets = async () => {
+  const loadBets = async (targetPage = page) => {
     if (!u) return
     setLoading(true)
     try {
       if (u.id) {
-        const { data } = await supabase
+        const { data, count, error } = await supabase
           .from('bets')
-          .select('*')
+          .select('*', { count: 'exact' })
           .eq('user_id', u.id)
           .eq('game', game)
           .order('created_at', { ascending: false })
-          .limit(100)
-        if (data && data.length) {
-          setBets(data)
+          .range(targetPage * 15, targetPage * 15 + 14)
+        if (error) throw error
+        if ((data && data.length) || count) {
+          setBets(data || [])
+          setTotalBets(count || 0)
           return
         }
       }
       const local = (u.bets || []).filter(b => b.g === game)
-      setBets(local.map((b, idx) => ({
+      const localRows = local.map((b, idx) => ({
         id: 'local-' + idx + '-' + b.t,
         amount: b.a,
         win_amount: b.w,
         created_at: new Date(b.t).toISOString()
-      })))
+      }))
+      setTotalBets(localRows.length)
+      setBets(localRows.slice(targetPage * 15, targetPage * 15 + 15))
     } catch (e) {
       console.error('loadBets error:', e)
+      const local = (u.bets || []).filter(b => b.g === game).map((b, idx) => ({
+        id: 'local-' + idx + '-' + b.t,
+        amount: b.a,
+        win_amount: b.w,
+        created_at: new Date(b.t).toISOString()
+      }))
+      setTotalBets(local.length)
+      setBets(local.slice(targetPage * 15, targetPage * 15 + 15))
     } finally {
       setLoading(false)
     }
@@ -39,21 +52,21 @@ export function GameHistory({ game }) {
 
   useEffect(() => {
     setPage(0)
-    loadBets()
-    const onNotif = () => setTimeout(loadBets, 600)
+    loadBets(0)
+    const onNotif = () => setTimeout(() => { setPage(0); loadBets(0) }, 600)
     window.addEventListener('rs-notify', onNotif)
     return () => window.removeEventListener('rs-notify', onNotif)
   }, [game, u?.id])
 
-  const PAGE_SIZE = 10
-  const totalPages = Math.max(1, Math.ceil(bets.length / PAGE_SIZE))
-  const displayed = bets.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  const totalPages = Math.max(1, Math.ceil(totalBets / 15))
+  const displayed = bets
+  const gameLabel = game === 'color' ? 'WIN GO' : String(game || 'Game').replace(/^\w/, letter => letter.toUpperCase())
 
   return (
     <div className="card" style={{ marginTop: 14, background: 'var(--bg)', borderRadius: 12 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <b>Bet History</b>
-        <button onClick={loadBets} style={{ padding: '3px 8px', fontSize: 11, background: 'var(--c2)' }}>Refresh</button>
+        <b>{gameLabel} Bet History</b>
+        <button onClick={() => loadBets(page)} style={{ padding: '3px 8px', fontSize: 11, background: 'var(--c2)' }}>Refresh</button>
       </div>
       <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
         <thead>
@@ -97,7 +110,7 @@ export function GameHistory({ game }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 8, borderTop: '1px solid var(--ln)' }}>
           <button 
             disabled={page === 0} 
-            onClick={() => setPage(p => p - 1)}
+            onClick={() => { const target = page - 1; setPage(target); loadBets(target) }}
             style={{ padding: '4px 10px', fontSize: 12, borderRadius: 6 }}
           >
             ← Previous
@@ -107,7 +120,7 @@ export function GameHistory({ game }) {
           </span>
           <button 
             disabled={page >= totalPages - 1} 
-            onClick={() => setPage(p => p + 1)}
+            onClick={() => { const target = page + 1; setPage(target); loadBets(target) }}
             style={{ padding: '4px 10px', fontSize: 12, borderRadius: 6 }}
           >
             Next →
@@ -286,7 +299,7 @@ function NotificationCard({ notif, onDismiss }) {
 
   
 
-  // Top card for Color Trading (net result) - overlaps main game card
+  // Top card for WIN GO (net result) - overlaps main game card
 
   if (center) {
 
@@ -432,7 +445,7 @@ function NotificationCard({ notif, onDismiss }) {
 
   
 
-  // Win/Loss - detailed card at top, overlapping game card (like Color Trading)
+  // Win/Loss - detailed card at top, overlapping game card (like WIN GO)
 
   return (
 
@@ -923,7 +936,7 @@ function Main() {
 
             <b>{GAMES.find((g) => g[0] === game)[1]}</b><p className="small">House edge {cfg.edge?.[game] || 0}%</p>
             <p className="small" style={{ padding: '9px 11px', margin: '8px 0', borderRadius: 8, background: '#8b5e0022', border: '1px solid #ffd54f55', color: '#ffe9a8' }}>
-              Play-money demo rules: Dice, Limbo, Mines, Keno, and Coin Flip use per-player groups of 10 bets with 3 wins, occasionally 4, placed at random nonconsecutive positions. Results can override normal game mechanics. Color Trading selects the number with the lowest total payout across all bets in each period. These outcomes are controlled, not random or fair. Sequences are saved in this browser; another browser or device has a separate sequence.
+              Play-money demo rules: Dice, Limbo, Mines, Keno, and Coin Flip use per-player groups of 10 bets with 3 wins, occasionally 4, placed at random nonconsecutive positions. Results can override normal game mechanics. WIN GO selects the number with the lowest total payout across all bets in each 30-second, 1-minute, or 3-minute period. These outcomes are controlled, not random or fair. Sequences are saved in this browser; another browser or device has a separate sequence.
             </p>
 
                         <label>Bet amount</label>
@@ -973,7 +986,7 @@ function Main() {
 
         {view === 'gameStats' && <GameStatistics u={u} onBack={() => go('account')} />}
 
-        {view === 'promotion' && <PromotionHub u={u} onNavigate={go} />}
+        {view === 'promotion' && <PromotionHub u={u} onNavigate={go} onSupport={openSupport} />}
 
         {view === 'account' && (
           <AccountHub

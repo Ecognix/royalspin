@@ -7,7 +7,10 @@ import {
 } from '../lib/supabase-db'
 import { GAMES } from './meta'
 import { Notifications } from './App'
-import { colorResult, ballClass, cpOf, PERIOD, cstate, hs } from '../lib/fair'
+import {
+  colorResult, ballClass, cpOf, COLOR_PERIODS, colorPeriodDetails,
+  colorPeriodId, colorPeriodInfo, cstate, hs
+} from '../lib/fair'
 
 // Admin console (route: /console). Separate login, separate session key,
 // not linked from the player app. Default login: admin / admin123 (change it in Security).
@@ -20,14 +23,17 @@ function ColorRoundsAdmin() {
   const [openPeriods, setOpenPeriods] = useState({})
   const [now, setNow] = useState(Date.now())
   const [colorResults, setColorResults] = useState({})
+  const [periodKey, setPeriodKey] = useState('wgo_30')
 
   useEffect(() => {
     const iv = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(iv)
   }, [])
 
-  const currentPeriod = Math.floor(now / PERIOD)
-  const left = Math.ceil(((currentPeriod + 1) * PERIOD - now) / 1000)
+  const selectedPeriod = COLOR_PERIODS.find(period => period.key === periodKey)
+  const periodState = colorPeriodInfo(now, periodKey)
+  const currentPeriod = periodState.id
+  const left = periodState.left
 
   const fetchColorBets = async () => {
     setLoading(true)
@@ -98,7 +104,7 @@ function ColorRoundsAdmin() {
 
   // Ensure current and recent periods are in the list even if 0 bets
   for (let i = 0; i < 40; i++) {
-    const pid = currentPeriod - i
+    const pid = colorPeriodId((periodState.startSeconds - i * selectedPeriod.seconds) * 1000, periodKey)
     if (!periodMap[pid]) {
       periodMap[pid] = {
         period_id: pid,
@@ -114,7 +120,9 @@ function ColorRoundsAdmin() {
     }
   }
 
-  const allPeriods = Object.values(periodMap).sort((a, b) => b.period_id - a.period_id)
+  const allPeriods = Object.values(periodMap)
+    .filter(period => colorPeriodDetails(period.period_id)?.key === periodKey)
+    .sort((a, b) => b.period_id - a.period_id)
   const PAGE_SIZE = 10
   const totalPages = Math.max(1, Math.ceil(allPeriods.length / PAGE_SIZE))
   const displayed = allPeriods.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
@@ -131,20 +139,36 @@ function ColorRoundsAdmin() {
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
         <div>
-          <b>Color Trading Rounds</b>
-          <div className="small" style={{ color: 'var(--mut)' }}>Click any round to view cumulative bet amounts per option</div>
+          <b>WIN GO Rounds</b>
+          <div className="small" style={{ color: 'var(--mut)' }}>Select an interval and click a round to view its bets and result</div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span className="live" style={{ background: 'var(--ac)' }} />
-          <span style={{ fontSize: 12, color: 'var(--ac)', fontWeight: 700 }}>Period #{currentPeriod} ({left}s)</span>
+          <span style={{ fontSize: 12, color: 'var(--ac)', fontWeight: 700 }}>{selectedPeriod.title} · Period #{periodState.periodNumber} ({left}s)</span>
           <button onClick={fetchColorBets} style={{ padding: '3px 8px', fontSize: 11, background: 'var(--c2)' }}>Refresh</button>
         </div>
+      </div>
+
+      <div className="color-period-tabs" role="tablist" aria-label="WIN GO admin interval">
+        {COLOR_PERIODS.map(interval => (
+          <button
+            key={interval.key}
+            type="button"
+            role="tab"
+            aria-selected={periodKey === interval.key}
+            className={periodKey === interval.key ? 'selected' : ''}
+            onClick={() => { setPeriodKey(interval.key); setPage(0) }}
+          >
+            WIN GO {interval.label}
+          </button>
+        ))}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {displayed.map((p) => {
           const isLive = p.period_id === currentPeriod
           const n = isLive ? null : (colorResults[p.period_id] ?? colorResult(p.period_id))
+          const roundInfo = colorPeriodDetails(p.period_id)
           const housePnl = p.totalBet - p.totalWin
           const isOpen = !!openPeriods[p.period_id]
           const opt = p.options
@@ -175,7 +199,7 @@ function ColorRoundsAdmin() {
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <b style={{ fontSize: 14 }}>#{p.period_id}</b>
+                  <b style={{ fontSize: 14 }}>#{roundInfo?.periodNumber ?? p.period_id}</b>
                   {isLive ? (
                     <span style={{ fontSize: 10, background: 'var(--ac)', color: '#000', padding: '2px 7px', borderRadius: 8, fontWeight: 900 }}>
                       LIVE ({left}s)

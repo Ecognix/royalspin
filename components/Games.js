@@ -5,7 +5,10 @@ import {
   BET_FEE_WAGER_STEP, BET_FEE_AMOUNT
 } from '../lib/supabase-db'
 import { resolveColorPeriod } from '../lib/tick'
-import { E, rnd, BETW, G, BLK, sched, cstate, cpOf, crashMult, PERIOD, LOCK, colorResult, colorResultCache, ballClass } from '../lib/fair'
+import {
+  E, rnd, BETW, G, BLK, sched, cstate, cpOf, crashMult, COLOR_PERIODS,
+  colorPeriodDetails, colorPeriodId, colorPeriodInfo, colorResult, colorResultCache, ballClass
+} from '../lib/fair'
 import { reserveDemoOutcome, rollbackDemoOutcome } from '../lib/demo-outcomes'
 
 const FULL = { width: '100%' }
@@ -534,48 +537,57 @@ const sizeCol = (n) => (n >= 5 ? '#f59e0b' : '#3b82f6')
 const cname = (n) => (n === 0 ? 'Red + Violet' : n === 5 ? 'Green + Violet' : n % 2 ? 'Green' : 'Red')
 export function Color({ amt }) {
   const [now, setNow] = useState(() => Date.now()), [sel, setSel] = useState(null)
+  const [periodKey, setPeriodKey] = useState('wgo_30')
   const [myBets, setMyBets] = useState([])
   const [historyPage, setHistoryPage] = useState(0)
   const [placing, setPlacing] = useState(false)
-  
+  const [showInstructions, setShowInstructions] = useState(false)
   const [, setRndTick] = useState(0)
   useEffect(() => { const iv = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(iv) }, [])
-  const id = Math.floor(now / PERIOD), left = Math.ceil(((id + 1) * PERIOD - now) / 1000), locked = left * 1000 <= LOCK
+  const period = COLOR_PERIODS.find(item => item.key === periodKey)
+  const periodState = colorPeriodInfo(now, periodKey)
+  const { id, left, locked } = periodState
+  const countdown = `${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`
   const u = user()
 
-  // Load this user's bets for current period from Supabase or memory
+  useEffect(() => { setHistoryPage(0) }, [periodKey])
+
+  // Keep all unsettled intervals in memory so their bets settle after switching tabs or reloading.
   useEffect(() => {
     async function loadPeriodBets() {
       const curUser = user()
       if (!curUser) return
       try {
         if (curUser.id) {
-          const { data } = await supabase
+          const { data, error } = await supabase
             .from('color_bets')
             .select('*')
             .eq('user_id', curUser.id)
-            .eq('period_id', id)
-          if (data && data.length) {
+            .eq('settled', false)
+            .order('created_at', { ascending: true })
+            .limit(1000)
+          if (error) throw error
+          if (data) {
             const mapped = data.map(b => ({
               id: b.period_id,
               type: b.bet_type,
               val: b.bet_value,
-              amt: Number(b.amount)
+              amt: Number(b.amount),
+              period_seconds: colorPeriodDetails(b.period_id)?.seconds || 30
             }))
-            setMyBets(mapped)
             curUser.cbets = mapped
+            setMyBets(mapped.filter(b => b.id === id))
             return
           }
         }
         if (curUser.cbets && curUser.cbets.length) {
           const matching = curUser.cbets.filter(b => b.id === id)
-          if (matching.length) {
-            setMyBets(matching)
-            return
-          }
+          setMyBets(matching)
+          return
         }
         setMyBets([])
       } catch (e) {
+        console.error('Failed to load unsettled WIN GO bets:', e)
         if (curUser.cbets) setMyBets(curUser.cbets.filter(b => b.id === id))
       }
     }
@@ -583,12 +595,18 @@ export function Color({ amt }) {
   }, [id])
 
   const mine = myBets.filter((b) => b.id === id)
+  const historyPageSize = 15
+  const totalHistoryPages = Math.max(1, Math.ceil(100 / historyPageSize))
+  const totalPast = Array.from({ length: 100 }, (_, k) =>
+    colorPeriodId((periodState.startSeconds - (k + 1) * period.seconds) * 1000, periodKey)
+  )
+  const past = totalPast.slice(historyPage * historyPageSize, (historyPage + 1) * historyPageSize)
 
   // Load only canonical results. Never seed the settlement cache from a partial client-side pool.
   useEffect(() => {
     let cancelled = false
     async function loadPastResults() {
-      const pastPeriods = Array.from({ length: 15 }, (_, k) => id - 1 - k)
+      const pastPeriods = totalPast.slice(historyPage * historyPageSize, (historyPage + 1) * historyPageSize)
       const missing = pastPeriods.filter(p => colorResultCache[p] === undefined)
       if (missing.length === 0) return
 
@@ -615,11 +633,10 @@ export function Color({ amt }) {
     }
     loadPastResults()
     return () => { cancelled = true }
-  }, [id])
+  }, [id, historyPage, periodKey, period, periodState.startSeconds])
 
-  const last = colorResult(id - 1)
-  const totalPast = Array.from({ length: 100 }, (_, k) => id - 1 - k)
-  const past = totalPast.slice(historyPage * 10, (historyPage + 1) * 10)
+  const previousPeriodId = colorPeriodId((periodState.startSeconds - period.seconds) * 1000, periodKey)
+  const last = colorResult(previousPeriodId)
   const same = (a, b) => a && b && a.type === b.type && a.val === b.val
   const pick = (type, val) => setSel({ type, val })
   async function bet() {
@@ -636,7 +653,7 @@ export function Color({ amt }) {
     }
 
     const placedOption = name(sel)
-    const newBet = { id, type: sel.type, val: sel.val, amt: a }
+    const newBet = { id, type: sel.type, val: sel.val, amt: a, period_seconds: period.seconds }
     try {
       const betPayload = {
         period_id: id,
@@ -654,7 +671,11 @@ export function Color({ amt }) {
       curUser.cbets.push(newBet)
       setMyBets(prev => [...prev.filter(b => b.id === id), newBet])
       setSel(null)
-      notify({ type: 'bet', title: 'Color Trading', message: 'Bet ₹' + f(a) + ' placed on ' + placedOption })
+      notify({
+        type: 'bet',
+        title: period.title,
+        message: `Period #${periodState.periodNumber} · Bet ₹${f(a)} placed on ${placedOption}`
+      })
     } catch (err) {
       console.error('Failed to insert color bet:', err)
       const refund = cancelCrashBet(a, 'color')
@@ -669,18 +690,36 @@ export function Color({ amt }) {
   }
   const name = (b) => { if (!b) return ''; if (b.type === 'num') return 'Number ' + b.val; const s = String(b.val || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
   return (
-    <>
+    <div className="color-game">
+      <div className="color-period-tabs" role="tablist" aria-label="WIN GO interval">
+        {COLOR_PERIODS.map(item => (
+          <button
+            key={item.key}
+            type="button"
+            role="tab"
+            aria-selected={periodKey === item.key}
+            className={periodKey === item.key ? 'selected' : ''}
+            onClick={() => setPeriodKey(item.key)}
+          >
+            WIN GO {item.label}
+          </button>
+        ))}
+      </div>
       <div className="row" style={{ alignItems: 'center' }}>
-        <div><div className="small">Period</div><b>#{id}</b></div>
-        <div style={{ textAlign: 'center' }}><div className="small">Closes in</div><b style={{ fontSize: 22 }}>0:{String(left).padStart(2, '0')}</b></div>
+        <div><div className="small">{period.title} · Period</div><b>#{periodState.periodNumber}</b></div>
+        <div style={{ textAlign: 'center' }}>
+          <div className="small">Closes in</div>
+          <b className={'color-countdown' + (locked ? ' locked' : '')} style={{ fontSize: 22 }}>{countdown}</b>
+        </div>
         <div style={{ textAlign: 'right' }}><div className="small">Last result</div>
           {last !== null && last !== undefined
             ? <><span className={'ball sm ' + ballClass(last)}>{last}</span> <b style={{ color: sizeCol(last) }}>{sizeOf(last)}</b></>
             : <span style={{ color: 'var(--mut)', fontSize: 12 }}>…</span>
           }</div>
       </div>
+      <button type="button" className="color-how-to-play" onClick={() => setShowInstructions(true)}>How to play</button>
       <div style={{ position: 'relative', marginTop: 12, padding: '14px 0', minHeight: 340, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 16 }}>
-        {locked && <div className="lock">{left}</div>}
+        {locked && <div className="lock color-lock-countdown">{left}</div>}
         <div className="row">
           {['green', 'violet', 'red'].map((c) => (
             <button key={c} className={'cbtn' + (same(sel, { type: 'color', val: c }) ? ' sel' : '')} style={{ background: BTN[c] }} onClick={() => pick('color', c)}>
@@ -706,22 +745,47 @@ export function Color({ amt }) {
       <button className="p" style={{ ...FULL, opacity: (locked || placing) ? 0.6 : 1 }} onClick={bet} disabled={locked || placing}>
         {placing ? 'Placing bet...' : sel ? `Bet ₹${f(amt)} on ${name(sel)}` : 'Choose an option'}
       </button>
-      {mine.length > 0 && <div className="card" style={{ marginTop: 12, marginBottom: 0, background: 'var(--bg)' }}><b>Your bets this period</b>
+      {mine.length > 0 && <div className="card" style={{ marginTop: 12, marginBottom: 0, background: 'var(--bg)' }}><b>{period.title} · Your bets this period</b>
         <table><tbody>{mine.map((b, i) => <tr key={i}><td>{name(b)}</td><td>₹{f(b.amt)}</td></tr>)}</tbody></table></div>}
 
       <div className="card" style={{ marginTop: 12, marginBottom: 0, background: 'var(--bg)' }}>
-        <b>History</b>
+        <b>{period.title} history</b>
+        <div className="color-history-table-scroll">
         <table>
           <thead><tr><th>Period</th><th>Number</th><th>Big / Small</th><th>Colour</th></tr></thead>
           <tbody>{past.map((p) => {
             const n = colorResult(p)
             if (n === null || n === undefined) {
-              return <tr key={p}><td>#{p}</td><td colSpan="3" style={{ color: 'var(--mut)', fontSize: 12 }}>Loading...</td></tr>
+              const periodNumber = colorPeriodDetails(p)?.periodNumber ?? p
+              return <tr key={p}><td>#{periodNumber}</td><td colSpan="3" style={{ color: 'var(--mut)', fontSize: 12 }}>Loading...</td></tr>
             }
-            return <tr key={p}><td>#{p}</td><td><span className={'ball sm ' + ballClass(n)}>{n}</span></td><td style={{ color: sizeCol(n), fontWeight: 700 }}>{sizeOf(n)}</td><td>{cname(n)}</td></tr>
+            const pastInfo = colorPeriodDetails(p)
+            return <tr key={p}><td>#{pastInfo.periodNumber}</td><td><span className={'ball sm ' + ballClass(n)}>{n}</span></td><td style={{ color: sizeCol(n), fontWeight: 700 }}>{sizeOf(n)}</td><td>{cname(n)}</td></tr>
           })}</tbody>
         </table>
+        </div>
+        <div className="color-history-pagination">
+          <button type="button" disabled={historyPage === 0} onClick={() => setHistoryPage(page => page - 1)}>← Previous</button>
+          <span>Page {historyPage + 1} of {totalHistoryPages}</span>
+          <button type="button" disabled={historyPage >= totalHistoryPages - 1} onClick={() => setHistoryPage(page => page + 1)}>Next →</button>
+        </div>
       </div>
-    </>
+      {showInstructions && (
+        <div className="color-modal-backdrop" onClick={() => setShowInstructions(false)}>
+          <section className="color-instructions" role="dialog" aria-modal="true" aria-labelledby="color-instructions-title" onClick={event => event.stopPropagation()}>
+            <button type="button" className="color-instructions-close" aria-label="Close instructions" onClick={() => setShowInstructions(false)}>×</button>
+            <h2 id="color-instructions-title">How to play WIN GO</h2>
+            <ol>
+              <li>Choose a round: 30 seconds, 1 minute or 3 minutes.</li>
+              <li>Select a colour, number, or Big / Small and place your bet before the final 5 seconds.</li>
+              <li>When the round closes, its number and settlement appear in that interval's history.</li>
+              <li>Check the displayed payout for each selection before placing a bet.</li>
+              <li>Results are selected by the server to minimize total payout; they are not random or fair.</li>
+            </ol>
+            <button type="button" className="p" style={{ ...FULL, marginTop: 12 }} onClick={() => setShowInstructions(false)}>Got it</button>
+          </section>
+        </div>
+      )}
+    </div>
   )
 }

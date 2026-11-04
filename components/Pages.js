@@ -500,7 +500,7 @@ export function ActivityHistory({ u, initialTab = 'bets' }) {
     setLoadError('')
     try {
       const [betResult, transactionResult, requestResult] = await Promise.all([
-        supabase.from('bets').select('id,game,amount,win_amount,created_at').eq('user_id', u.id).order('created_at', { ascending: false }).limit(200),
+        supabase.from('bets').select('id,game,amount,win_amount,details,created_at').eq('user_id', u.id).order('created_at', { ascending: false }).limit(200),
         supabase.from('transactions').select('id,type,amount,balance_after,details,created_at').eq('user_id', u.id).order('created_at', { ascending: false }).limit(200),
         supabase.from('requests').select('id,type,amount,status,upi_id,created_at').eq('user_id', u.id).in('type', ['deposit', 'withdraw']).order('created_at', { ascending: false }).limit(200)
       ])
@@ -538,7 +538,7 @@ export function ActivityHistory({ u, initialTab = 'bets' }) {
     if (tab === 'transactions') return recordFilter === 'credits' ? Number(row.amount) > 0 : Number(row.amount) < 0
     return String(row.status || 'pending').toLowerCase() === recordFilter
   })
-  const pageSize = 10
+  const pageSize = 15
   const pages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
   const shown = filteredRows.slice(page * pageSize, (page + 1) * pageSize)
   const pageTitle = tab === 'bets' ? 'Game history'
@@ -574,9 +574,11 @@ export function ActivityHistory({ u, initialTab = 'bets' }) {
         {shown.map(row => {
           if (tab === 'bets') {
             const net = Number(row.win_amount || 0) - Number(row.amount || 0)
+            const gameLabel = row.details?.period_title
+              || (row.game === 'color' ? 'WIN GO' : String(row.game || 'Game').replace(/^\w/, letter => letter.toUpperCase()))
             return (
               <div className="activity-row" key={row.id}>
-                <div><b>{String(row.game || 'Game').replace(/^\w/, letter => letter.toUpperCase())} · {net > 0 ? 'Win' : 'Loss'}</b><small>{new Date(row.created_at).toLocaleString()} · Bet ₹{f(row.amount)}</small></div>
+                <div><b>{gameLabel} · {net > 0 ? 'Win' : 'Loss'}</b><small>{new Date(row.created_at).toLocaleString()} · Bet ₹{f(row.amount)}</small></div>
                 <strong className={net > 0 ? 'positive' : 'negative'}>{net > 0 ? '+' : ''}₹{f(net)}</strong>
               </div>
             )
@@ -584,9 +586,12 @@ export function ActivityHistory({ u, initialTab = 'bets' }) {
           if (tab === 'transactions') {
             const amount = Number(row.amount || 0)
             const type = String(row.type || 'Transaction').toLowerCase()
-            const game = row.details?.game
-              ? String(row.details.game).replace(/^\w/, letter => letter.toUpperCase())
-              : ''
+            const game = row.details?.period_title
+              || (row.details?.game === 'color'
+                ? 'WIN GO'
+                : row.details?.game
+                  ? String(row.details.game).replace(/^\w/, letter => letter.toUpperCase())
+                  : '')
             const typeLabels = {
               bet: 'Bet placed',
               bet_fee: 'Bet fee',
@@ -834,11 +839,176 @@ export function AccountHub({ u, isAdmin, onWallet, onActivity, onNavigate, onMes
   )
 }
 
-export function PromotionHub({ u, onNavigate }) {
+export function PromotionHub({ u, onNavigate, onSupport }) {
+  const [origin, setOrigin] = useState('')
+  const [metrics, setMetrics] = useState({
+    directCount: 0,
+    teamCount: 0,
+    depositCount: 0,
+    depositAmount: 0,
+    depositPeople: 0,
+    totalCommission: 0,
+    yesterdayCommission: 0
+  })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [info, setInfo] = useState('')
+  const [refreshKey, setRefreshKey] = useState(0)
+  const referralLink = u?.id && origin ? `${origin}/?ref=${encodeURIComponent(u.id)}` : ''
+
+  useEffect(() => {
+    setOrigin(window.location.origin)
+  }, [])
+
+  useEffect(() => {
+    if (!u?.id) {
+      setLoading(false)
+      return
+    }
+    let active = true
+    async function loadAgencyData() {
+      setLoading(true)
+      setError('')
+      try {
+        const { data: directRows, error: directError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('referred_by', u.id)
+        if (directError) throw directError
+
+        const directIds = (directRows || []).map(row => row.id).filter(Boolean)
+        const { start, end } = getIndiaPeriodRange('yesterday')
+        const teamQuery = directIds.length
+          ? supabase.from('users').select('id').in('referred_by', directIds)
+          : Promise.resolve({ data: [], error: null })
+        const depositQuery = directIds.length
+          ? supabase.from('transactions').select('user_id,amount').in('user_id', directIds).eq('type', 'Deposit').limit(2000)
+          : Promise.resolve({ data: [], error: null })
+        const [teamResult, depositResult, rewardResult] = await Promise.all([
+          teamQuery,
+          depositQuery,
+          supabase.from('transactions')
+            .select('amount,created_at')
+            .eq('user_id', u.id)
+            .eq('type', 'Referral reward')
+            .limit(2000)
+        ])
+        const queryError = teamResult.error || depositResult.error || rewardResult.error
+        if (queryError) throw queryError
+        if (!active) return
+
+        const deposits = depositResult.data || []
+        const rewards = rewardResult.data || []
+        const depositingPeople = new Set(deposits.map(row => row.user_id).filter(Boolean))
+        setMetrics({
+          directCount: directIds.length,
+          teamCount: directIds.length + (teamResult.data || []).length,
+          depositCount: deposits.length,
+          depositAmount: deposits.reduce((total, row) => total + Number(row.amount || 0), 0),
+          depositPeople: depositingPeople.size,
+          totalCommission: rewards.reduce((total, row) => total + Number(row.amount || 0), 0),
+          yesterdayCommission: rewards
+            .filter(row => row.created_at >= start && row.created_at < end)
+            .reduce((total, row) => total + Number(row.amount || 0), 0)
+        })
+      } catch (loadError) {
+        console.error('Agency data load error:', loadError)
+        if (active) setError('Agency statistics could not be loaded. Please refresh and try again.')
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+    loadAgencyData()
+    return () => { active = false }
+  }, [u?.id, refreshKey])
+
+  async function copyValue(value, label) {
+    if (!value) return
+    try {
+      await navigator.clipboard.writeText(value)
+      toast(`${label} copied`)
+    } catch (copyError) {
+      console.error(`Agency ${label.toLowerCase()} copy error:`, copyError)
+      toast(`Could not copy ${label.toLowerCase()}; select and copy it manually`)
+    }
+  }
+
+  const infoContent = info === 'rules'
+    ? 'Share your invitation link with new players. Referral rewards are credited only when an eligible referred player makes an approved deposit.'
+    : info === 'ratio'
+      ? `Current referral reward: ${REFERRAL_REWARD_PERCENT}% of eligible approved deposits.`
+      : `Direct subordinates: ${metrics.directCount}. Team subordinates: ${metrics.teamCount}.`
+
   return (
-    <div className="promotion-page">
-      <RewardsLanding u={u} onNavigate={onNavigate} title="Promotion" />
-      <Referral u={u} />
+    <div className="promotion-page agency-page">
+      <div className="agency-hero">
+        <div className="agency-eyebrow">ROYAL SPIN · AGENCY</div>
+        <h2>Agency</h2>
+        <p>Invite players and track your referral activity.</p>
+        <div className="agency-yesterday">
+          <span>Yesterday&apos;s commission</span>
+          <strong>{loading ? '…' : `₹${f(metrics.yesterdayCommission)}`}</strong>
+        </div>
+      </div>
+
+      {error && <p className="page-error">{error}</p>}
+
+      <div className="agency-stat-grid">
+        <article className="agency-stat">
+          <span>Direct subordinates</span>
+          <strong>{loading ? '…' : metrics.directCount}</strong>
+        </article>
+        <article className="agency-stat">
+          <span>Team subordinates</span>
+          <strong>{loading ? '…' : metrics.teamCount}</strong>
+        </article>
+        <article className="agency-stat">
+          <span>Total commission</span>
+          <strong>{loading ? '…' : `₹${f(metrics.totalCommission)}`}</strong>
+        </article>
+        <article className="agency-stat">
+          <span>Referral rate</span>
+          <strong>{REFERRAL_REWARD_PERCENT}%</strong>
+        </article>
+      </div>
+
+      <section className="agency-invite">
+        <div>
+          <span className="agency-section-label">Invitation code</span>
+          <strong className="agency-code">{u?.id || '—'}</strong>
+        </div>
+        <button type="button" onClick={() => copyValue(u?.id, 'Invitation code')} disabled={!u?.id}>Copy code</button>
+        <label htmlFor="agency-invite-link">Invitation link</label>
+        <input id="agency-invite-link" readOnly value={referralLink} onFocus={event => event.target.select()} />
+        <button type="button" className="agency-copy-link" onClick={() => copyValue(referralLink, 'Invitation link')} disabled={!referralLink}>Copy invitation link</button>
+      </section>
+
+      <section className="agency-summary">
+        <div className="agency-section-heading"><b>Promotion data</b><button type="button" onClick={() => { setError(''); setLoading(true); setRefreshKey(key => key + 1) }}>Refresh</button></div>
+        <div className="agency-summary-row"><span>Direct deposits</span><b>{loading ? '…' : metrics.depositCount}</b></div>
+        <div className="agency-summary-row"><span>Players who deposited</span><b>{loading ? '…' : metrics.depositPeople}</b></div>
+        <div className="agency-summary-row"><span>Deposit amount</span><b>{loading ? '…' : `₹${f(metrics.depositAmount)}`}</b></div>
+        <div className="agency-summary-row"><span>All-time commission</span><b>{loading ? '…' : `₹${f(metrics.totalCommission)}`}</b></div>
+      </section>
+
+      <section className="agency-menu">
+        <button type="button" onClick={() => setInfo('subordinates')}><span>Subordinate data</span><b>›</b></button>
+        <button type="button" onClick={() => onNavigate('referral')}><span>Commission details</span><b>›</b></button>
+        <button type="button" onClick={() => setInfo('rules')}><span>Invitation rules</span><b>›</b></button>
+        <button type="button" onClick={() => onSupport ? onSupport() : toast('Support is unavailable right now')}><span>Agent line customer service</span><b>›</b></button>
+        <button type="button" onClick={() => setInfo('ratio')}><span>Rebate ratio</span><b>{REFERRAL_REWARD_PERCENT}%</b></button>
+      </section>
+
+      {info && (
+        <div className="color-modal-backdrop" onClick={() => setInfo('')}>
+          <section className="color-instructions agency-info-modal" role="dialog" aria-modal="true" onClick={event => event.stopPropagation()}>
+            <button type="button" className="color-instructions-close" aria-label="Close" onClick={() => setInfo('')}>×</button>
+            <h2>{info === 'rules' ? 'Invitation rules' : info === 'ratio' ? 'Rebate ratio' : 'Subordinate data'}</h2>
+            <p>{infoContent}</p>
+            <button type="button" className="p" style={{ width: '100%', marginTop: 12 }} onClick={() => setInfo('')}>Close</button>
+          </section>
+        </div>
+      )}
     </div>
   )
 }
