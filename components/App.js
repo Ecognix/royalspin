@@ -151,15 +151,62 @@ import {
 
 import { tick } from '../lib/tick'
 
-import { GAMES, ICON } from './meta'
+import { GAMES } from './meta'
 
-import { Dice, Limbo, Mines, Keno, Flip, Crash, Color } from './Games'
+import { Dice, Limbo, Mines, Keno, Flip, Crash, Color, ColorPeriodTabs } from './Games'
 
 import { Wallet, Support, Activity, ActivityHistory, GameStatistics, NotificationCenter, AccountHub, PromotionHub, HubIcon, Vault, Wager, Bonus, Referral, Profile, Settings } from './Pages'
 
 
 
 const COMP = { dice: Dice, limbo: Limbo, mines: Mines, keno: Keno, flip: Flip, crash: Crash, color: Color }
+
+const GAME_ART = {
+  crash: '/games/aviator.png',
+  color: '/games/wingo.png',
+  dice: '/games/dice.png',
+  mines: '/games/mines.png',
+  limbo: '/games/limbo.png',
+  keno: '/games/keno.png',
+  flip: '/games/flip.png'
+}
+
+const OTHER_HOME_GAMES = [
+  { label: 'Chicken Road 2', image: '/games/chicken-road-2.jpg' },
+  { label: 'Chicken Shoot', image: '/games/chicken-shoot.png' },
+  { label: 'Vortex', image: '/games/vortex.png' },
+  { label: 'Dragon Gems Clash', image: '/games/dragon-gems-clash.png' },
+  { label: 'Go Rush', image: '/games/go-rush.png' },
+  { label: 'Cricket', image: '/games/cricket.png' },
+  { label: 'Penalty Kicks', image: '/games/penalty.png' },
+  { label: 'Plinko', image: '/games/plinko.png' },
+  { label: 'Rocket', image: '/games/rocket.png' },
+  { label: 'Andar Bahar', image: '/games/andar-bahar.png' }
+]
+
+const LOTTERY_HOME_GAMES = [
+  { gameKey: 'color', label: 'WIN GO', image: '/games/wingo.png' },
+  { label: 'K3', image: '/games/k3.png' },
+  { label: '5D', image: '/games/5d.png' },
+  { label: 'TRX WINGO', image: '/games/trx-wingo.png' }
+]
+
+function HomeGameCard({ item, cfg, onOpen, variant = '' }) {
+  const active = Boolean(item.gameKey && cfg.on?.[item.gameKey])
+  return (
+    <button
+      type="button"
+      className={`home-game-card ${variant}${active ? '' : ' unavailable'}`}
+      onClick={() => active && onOpen(item.gameKey)}
+      disabled={!active}
+      aria-label={active ? `Open ${item.label}` : `${item.label}, coming soon`}
+    >
+      <img src={item.image} alt="" loading="lazy" />
+      <span className="home-game-name">{item.label}</span>
+      {!active && <span className="home-coming-soon">Coming Soon</span>}
+    </button>
+  )
+}
 
 // Notification system - supports both simple toasts and detailed result cards
 
@@ -785,6 +832,7 @@ function Main() {
     }
     return null
   })
+  const [colorPeriodKey, setColorPeriodKey] = useState('wgo_30')
 
   const [amt, setAmt] = useState(10)
   const [walletTab, setWalletTab] = useState('d')
@@ -888,6 +936,15 @@ function Main() {
   }
 
   const Game = COMP[game]
+  const recentGames = GAMES.map(([gameKey, label]) => ({
+    gameKey, label, image: GAME_ART[gameKey]
+  }))
+  const mainGames = [
+    ...GAMES
+      .filter(([gameKey]) => gameKey !== 'color')
+      .map(([gameKey, label]) => ({ gameKey, label, image: GAME_ART[gameKey] })),
+    ...OTHER_HOME_GAMES
+  ]
 
   
 
@@ -912,21 +969,31 @@ function Main() {
 
       <main className={view === 'admin' ? '' : 'player-main'}>
 
-        {view === 'home' && <>
+        {view === 'home' && <div className="home-page">
+          <section className="home-section">
+            <div className="home-section-heading"><h3>Recent</h3></div>
+            <div className="recent-game-list">
+              {recentGames.map(item => <HomeGameCard key={item.gameKey} item={item} cfg={cfg} onOpen={gameKey => go('game', gameKey)} variant="recent-game-card" />)}
+            </div>
+          </section>
 
-          <h3>Choose a game</h3>
+          <section className="home-section">
+            <div className="home-section-heading"><h3>Main</h3></div>
+            <div className="home-game-grid">
+              {mainGames.map((item, index) => <HomeGameCard key={item.gameKey || item.image + index} item={item} cfg={cfg} onOpen={gameKey => go('game', gameKey)} />)}
+            </div>
+          </section>
 
-          <div className="tiles">{GAMES.map(([k, n, c]) => {
-
-            const [a, b] = c.split(',')
-
-            // using D.cfg
-
-            return <button key={k} className={'tile' + (cfg.on?.[k] ? '' : ' off')} style={{ background: `linear-gradient(135deg,${a},${b})` }} onClick={() => go('game', k)}>
-
-              <svg viewBox="0 -2 100 100">{ICON[k]}</svg><span>{n}</span></button>
-
-          })}</div></>}
+          <section className="home-section">
+            <div className="lottery-section-heading">
+              <img src="/games/lottery-logo.svg" alt="" />
+              <div><h3>Lottery</h3><p>Number draw games and prediction rounds.</p></div>
+            </div>
+            <div className="home-game-grid lottery-game-grid">
+              {LOTTERY_HOME_GAMES.map(item => <HomeGameCard key={item.label} item={item} cfg={cfg} onOpen={gameKey => go('game', gameKey)} variant="lottery-game-card" />)}
+            </div>
+          </section>
+        </div>}
 
         {view === 'game' && Game && <>
 
@@ -935,9 +1002,7 @@ function Main() {
           <div className="card" style={{ marginTop: 10 }}>
 
             <b>{GAMES.find((g) => g[0] === game)[1]}</b><p className="small">House edge {cfg.edge?.[game] || 0}%</p>
-            <p className="small" style={{ padding: '9px 11px', margin: '8px 0', borderRadius: 8, background: '#8b5e0022', border: '1px solid #ffd54f55', color: '#ffe9a8' }}>
-              Play-money demo rules: Dice, Limbo, Mines, Keno, and Coin Flip use per-player groups of 10 bets with 3 wins, occasionally 4, placed at random nonconsecutive positions. Results can override normal game mechanics. WIN GO selects the number with the lowest total payout across all bets in each 30-second, 1-minute, or 3-minute period. These outcomes are controlled, not random or fair. Sequences are saved in this browser; another browser or device has a separate sequence.
-            </p>
+            {game === 'color' && <ColorPeriodTabs value={colorPeriodKey} onChange={setColorPeriodKey} />}
 
                         <label>Bet amount</label>
             <p className="small">₹{BET_FEE_AMOUNT} is deducted for every completed ₹{BET_FEE_WAGER_STEP} of cumulative bets. Partial amounts carry over.</p>
@@ -957,7 +1022,7 @@ function Main() {
               </button>
             </div>
 
-            <div style={{ marginTop: 10 }}><Game key={game} amt={amt} /></div>
+            <div style={{ marginTop: 10 }}><Game key={game} amt={amt} periodKey={colorPeriodKey} /></div>
             {game !== 'color' && <GameHistory game={game} />}
 
           </div></>}

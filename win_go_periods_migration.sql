@@ -140,4 +140,5 @@ $$;
 
 REVOKE ALL ON FUNCTION public.color_period_seconds(BIGINT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.resolve_color_period(BIGINT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.color_period_seconds(BIGINT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.resolve_color_period(BIGINT) TO anon, authenticated;

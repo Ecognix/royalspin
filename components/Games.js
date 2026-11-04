@@ -535,22 +535,70 @@ const BTN = { green: '#2e9e5b', violet: '#8e44ad', red: '#e53935' }
 const sizeOf = (n) => (n >= 5 ? 'Big' : 'Small')
 const sizeCol = (n) => (n >= 5 ? '#f59e0b' : '#3b82f6')
 const cname = (n) => (n === 0 ? 'Red + Violet' : n === 5 ? 'Green + Violet' : n % 2 ? 'Green' : 'Red')
-export function Color({ amt }) {
+
+export function ColorPeriodTabs({ value, onChange }) {
+  return (
+    <div className="color-period-tabs" role="tablist" aria-label="WIN GO interval">
+      {COLOR_PERIODS.map(item => (
+        <button
+          key={item.key}
+          type="button"
+          role="tab"
+          aria-selected={value === item.key}
+          className={value === item.key ? 'selected' : ''}
+          onClick={() => onChange(item.key)}
+        >
+          <span>WIN GO</span>
+          <strong>{item.label}</strong>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export function Color({ amt, periodKey = 'wgo_30' }) {
   const [now, setNow] = useState(() => Date.now()), [sel, setSel] = useState(null)
-  const [periodKey, setPeriodKey] = useState('wgo_30')
   const [myBets, setMyBets] = useState([])
   const [historyPage, setHistoryPage] = useState(0)
   const [placing, setPlacing] = useState(false)
-  const [showInstructions, setShowInstructions] = useState(false)
+  const [checkedPeriodKey, setCheckedPeriodKey] = useState('wgo_30')
+  const [periodSupport, setPeriodSupport] = useState(true)
   const [, setRndTick] = useState(0)
   useEffect(() => { const iv = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(iv) }, [])
   const period = COLOR_PERIODS.find(item => item.key === periodKey)
   const periodState = colorPeriodInfo(now, periodKey)
   const { id, left, locked } = periodState
   const countdown = `${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`
+  const intervalReady = periodKey === 'wgo_30' || (checkedPeriodKey === periodKey && periodSupport === true)
+  const intervalChecking = periodKey !== 'wgo_30' && (checkedPeriodKey !== periodKey || periodSupport === null)
+  const intervalUnavailable = periodKey !== 'wgo_30' && checkedPeriodKey === periodKey && periodSupport === false
   const u = user()
 
-  useEffect(() => { setHistoryPage(0) }, [periodKey])
+  useEffect(() => {
+    setHistoryPage(0)
+    if (periodKey === 'wgo_30') {
+      setCheckedPeriodKey(periodKey)
+      setPeriodSupport(true)
+      return
+    }
+
+    let active = true
+    setCheckedPeriodKey(periodKey)
+    setPeriodSupport(null)
+    const periodId = colorPeriodInfo(Date.now(), periodKey).id
+    supabase.rpc('color_period_seconds', { p_period_id: periodId })
+      .then(({ data, error }) => {
+        if (error) throw error
+        if (Number(data) !== period.seconds) throw new Error('Backend interval does not match the selected WIN GO mode')
+        if (active) setPeriodSupport(true)
+      })
+      .catch(error => {
+        console.error('WIN GO interval backend check failed:', error)
+        if (active) setPeriodSupport(false)
+      })
+
+    return () => { active = false }
+  }, [periodKey, period])
 
   // Keep all unsettled intervals in memory so their bets settle after switching tabs or reloading.
   useEffect(() => {
@@ -606,6 +654,7 @@ export function Color({ amt }) {
   useEffect(() => {
     let cancelled = false
     async function loadPastResults() {
+      if (!intervalReady) return
       const pastPeriods = totalPast.slice(historyPage * historyPageSize, (historyPage + 1) * historyPageSize)
       const missing = pastPeriods.filter(p => colorResultCache[p] === undefined)
       if (missing.length === 0) return
@@ -633,7 +682,7 @@ export function Color({ amt }) {
     }
     loadPastResults()
     return () => { cancelled = true }
-  }, [id, historyPage, periodKey, period, periodState.startSeconds])
+  }, [id, historyPage, periodKey, period, periodState.startSeconds, intervalReady])
 
   const previousPeriodId = colorPeriodId((periodState.startSeconds - period.seconds) * 1000, periodKey)
   const last = colorResult(previousPeriodId)
@@ -641,6 +690,7 @@ export function Color({ amt }) {
   const pick = (type, val) => setSel({ type, val })
   async function bet() {
     if (!sel) return toast('Choose a colour, number or size')
+    if (!intervalReady) return toast(intervalChecking ? 'Checking WIN GO interval setup' : 'Apply win_go_periods_migration.sql to enable this interval')
     if (locked) return toast('Betting is locked for the last 5 seconds')
     const curUser = user()
     if (!curUser) return toast('Please login first')
@@ -691,20 +741,6 @@ export function Color({ amt }) {
   const name = (b) => { if (!b) return ''; if (b.type === 'num') return 'Number ' + b.val; const s = String(b.val || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
   return (
     <div className="color-game">
-      <div className="color-period-tabs" role="tablist" aria-label="WIN GO interval">
-        {COLOR_PERIODS.map(item => (
-          <button
-            key={item.key}
-            type="button"
-            role="tab"
-            aria-selected={periodKey === item.key}
-            className={periodKey === item.key ? 'selected' : ''}
-            onClick={() => setPeriodKey(item.key)}
-          >
-            WIN GO {item.label}
-          </button>
-        ))}
-      </div>
       <div className="row" style={{ alignItems: 'center' }}>
         <div><div className="small">{period.title} · Period</div><b>#{periodState.periodNumber}</b></div>
         <div style={{ textAlign: 'center' }}>
@@ -714,15 +750,15 @@ export function Color({ amt }) {
         <div style={{ textAlign: 'right' }}><div className="small">Last result</div>
           {last !== null && last !== undefined
             ? <><span className={'ball sm ' + ballClass(last)}>{last}</span> <b style={{ color: sizeCol(last) }}>{sizeOf(last)}</b></>
-            : <span style={{ color: 'var(--mut)', fontSize: 12 }}>…</span>
+            : <span style={{ color: 'var(--mut)', fontSize: 12 }}>{intervalUnavailable ? 'Setup required' : '…'}</span>
           }</div>
       </div>
-      <button type="button" className="color-how-to-play" onClick={() => setShowInstructions(true)}>How to play</button>
+      {intervalUnavailable && <p className="small win-go-backend-warning">This interval needs the WIN GO database migration before betting and results are available.</p>}
       <div style={{ position: 'relative', marginTop: 12, padding: '14px 0', minHeight: 340, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 16 }}>
         {locked && <div className="lock color-lock-countdown">{left}</div>}
         <div className="row">
           {['green', 'violet', 'red'].map((c) => (
-            <button key={c} className={'cbtn' + (same(sel, { type: 'color', val: c }) ? ' sel' : '')} style={{ background: BTN[c] }} onClick={() => pick('color', c)}>
+            <button key={c} className={'cbtn color-choice' + (same(sel, { type: 'color', val: c }) ? ' sel' : '')} style={{ background: BTN[c] }} onClick={() => pick('color', c)}>
               {c[0].toUpperCase() + c.slice(1)}<div className="small" style={{ color: '#fffc' }}>{PAY[c]}</div>
             </button>
           ))}
@@ -740,24 +776,27 @@ export function Color({ amt }) {
           ))}
         </div>
       </div>
-      <p className="small">Number pays 8.8×. If 0 or 5 lands, it counts as red or green at 1.47× and also as violet (4.4×). Red and Green pay 1.96×, Big and Small pay 1.96×.</p>
+      <p className="small">Number pays 8.8×. If 0 or 5 lands, it counts as red or green at 1.47× and also as violet (4.4×). Red and Green pay 1.96×, Big and Small pay 1.96×. Results follow the existing server payout-minimization rule and are not random.</p>
       
-      <button className="p" style={{ ...FULL, opacity: (locked || placing) ? 0.6 : 1 }} onClick={bet} disabled={locked || placing}>
-        {placing ? 'Placing bet...' : sel ? `Bet ₹${f(amt)} on ${name(sel)}` : 'Choose an option'}
+      <button className="p color-place-bet" style={{ ...FULL, opacity: (locked || placing || !intervalReady) ? 0.6 : 1 }} onClick={bet} disabled={locked || placing || !intervalReady}>
+        {placing ? 'Placing bet...' : intervalChecking ? 'Checking interval...' : intervalUnavailable ? 'Backend setup required' : sel ? `Bet ₹${f(amt)} on ${name(sel)}` : 'Choose an option'}
       </button>
-      {mine.length > 0 && <div className="card" style={{ marginTop: 12, marginBottom: 0, background: 'var(--bg)' }}><b>{period.title} · Your bets this period</b>
-        <table><tbody>{mine.map((b, i) => <tr key={i}><td>{name(b)}</td><td>₹{f(b.amt)}</td></tr>)}</tbody></table></div>}
+      {mine.length > 0 && <div className="card color-history-card" style={{ marginTop: 12, marginBottom: 0, background: 'var(--bg)' }}>
+        <div className="game-history-header"><b>{period.title} · Your bets this period</b></div>
+        <table><tbody>{mine.map((b, i) => <tr key={i}><td>{name(b)}</td><td>₹{f(b.amt)}</td></tr>)}</tbody></table>
+      </div>}
 
-      <div className="card" style={{ marginTop: 12, marginBottom: 0, background: 'var(--bg)' }}>
-        <b>{period.title} history</b>
+      <div className="card color-history-card" style={{ marginTop: 12, marginBottom: 0, background: 'var(--bg)' }}>
+        <div className="game-history-header"><b>{period.title} results</b></div>
         <div className="color-history-table-scroll">
         <table>
-          <thead><tr><th>Period</th><th>Number</th><th>Big / Small</th><th>Colour</th></tr></thead>
+          <thead className="red-table-head"><tr><th>Period</th><th>Number</th><th>Big / Small</th><th>Colour</th></tr></thead>
           <tbody>{past.map((p) => {
             const n = colorResult(p)
             if (n === null || n === undefined) {
               const periodNumber = colorPeriodDetails(p)?.periodNumber ?? p
-              return <tr key={p}><td>#{periodNumber}</td><td colSpan="3" style={{ color: 'var(--mut)', fontSize: 12 }}>Loading...</td></tr>
+              const status = intervalUnavailable ? 'Apply win_go_periods_migration.sql to load this interval.' : intervalChecking ? 'Checking server setup…' : 'Loading...'
+              return <tr key={p}><td>#{periodNumber}</td><td colSpan="3" style={{ color: 'var(--mut)', fontSize: 12 }}>{status}</td></tr>
             }
             const pastInfo = colorPeriodDetails(p)
             return <tr key={p}><td>#{pastInfo.periodNumber}</td><td><span className={'ball sm ' + ballClass(n)}>{n}</span></td><td style={{ color: sizeCol(n), fontWeight: 700 }}>{sizeOf(n)}</td><td>{cname(n)}</td></tr>
@@ -770,22 +809,6 @@ export function Color({ amt }) {
           <button type="button" disabled={historyPage >= totalHistoryPages - 1} onClick={() => setHistoryPage(page => page + 1)}>Next →</button>
         </div>
       </div>
-      {showInstructions && (
-        <div className="color-modal-backdrop" onClick={() => setShowInstructions(false)}>
-          <section className="color-instructions" role="dialog" aria-modal="true" aria-labelledby="color-instructions-title" onClick={event => event.stopPropagation()}>
-            <button type="button" className="color-instructions-close" aria-label="Close instructions" onClick={() => setShowInstructions(false)}>×</button>
-            <h2 id="color-instructions-title">How to play WIN GO</h2>
-            <ol>
-              <li>Choose a round: 30 seconds, 1 minute or 3 minutes.</li>
-              <li>Select a colour, number, or Big / Small and place your bet before the final 5 seconds.</li>
-              <li>When the round closes, its number and settlement appear in that interval's history.</li>
-              <li>Check the displayed payout for each selection before placing a bet.</li>
-              <li>Results are selected by the server to minimize total payout; they are not random or fair.</li>
-            </ol>
-            <button type="button" className="p" style={{ ...FULL, marginTop: 12 }} onClick={() => setShowInstructions(false)}>Got it</button>
-          </section>
-        </div>
-      )}
     </div>
   )
 }
