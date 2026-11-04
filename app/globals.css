@@ -324,12 +324,23 @@ main.player-main{width:100%;max-width:520px;min-height:calc(100vh - 60px);margin
 .tile.off{filter:grayscale(1) opacity(.5)}
 .home-page{display:flex;flex-direction:column;gap:20px}
 .home-section{min-width:0}
+.home-section-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
 .home-section-heading h3,.lottery-section-heading h3{margin:0;color:#30394a;font-size:17px}
-.recent-game-list{display:grid;grid-auto-flow:column;grid-auto-columns:calc((100% - 16px)/3);gap:8px;overflow-x:auto;overscroll-behavior-x:contain;padding:2px 1px 5px}
+.home-section-actions{display:flex;gap:6px}
+.home-scroll-button{width:32px;height:32px;padding:0;border:1px solid #e6e8ed;border-radius:50%;background:#fff;color:#ed555d;font-size:24px;line-height:1}
+.home-view-more{padding:6px 0;background:transparent;color:#ed555d;font-size:12px;font-weight:700}
+.home-view-more span{margin-left:3px;font-size:16px}
+.recent-game-list{display:grid;grid-auto-flow:column;grid-auto-columns:calc((100% - 16px)/3);gap:8px;overflow-x:auto;overscroll-behavior-x:contain;scroll-behavior:smooth;scroll-snap-type:x mandatory;padding:2px 1px 5px;scrollbar-width:none}
+.recent-game-list::-webkit-scrollbar{display:none}
 .home-game-card{position:relative;display:block;width:100%;aspect-ratio:.74;overflow:hidden;padding:0;border:0;border-radius:10px;background:#e8eaf0;text-align:left;box-shadow:none}
+.recent-game-card{scroll-snap-align:start}
 .home-game-card img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .home-game-name{position:absolute;right:0;bottom:0;left:0;padding:22px 8px 8px;background:linear-gradient(transparent,#000b);color:#fff;font-size:12px;font-weight:800;line-height:1.15;text-shadow:0 1px 3px #000}
 .home-game-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.all-games-page{display:flex;flex-direction:column;gap:12px}
+.all-games-title{display:flex;align-items:center;gap:12px;margin-bottom:2px}
+.all-games-title h2{margin:0;color:#293449;font-size:20px}
+.all-games-title button{padding:7px 10px;border:1px solid #e5e7ed;background:#fff;color:#505d70;font-size:12px}
 .lottery-section-heading{display:flex;align-items:center;gap:9px;margin-bottom:10px}
 .lottery-section-heading img{width:38px;height:38px;flex:none}
 .lottery-section-heading p{margin:2px 0 0;color:#7c8798;font-size:11px}

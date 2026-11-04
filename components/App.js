@@ -134,7 +134,7 @@ export function GameHistory({ game }) {
 
 import Admin from './Admin'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { 
 
@@ -824,6 +824,7 @@ function Main() {
     }
     return 'home'
   })
+  const recentListRef = useRef(null)
   const [game, setGame] = useState(() => {
     if (typeof window !== 'undefined') {
       return sessionStorage.getItem('rs-game') || null
@@ -934,13 +935,21 @@ function Main() {
   }
 
   const Game = COMP[game]
+  const scrollRecentGames = direction => {
+    const list = recentListRef.current
+    if (list) list.scrollBy({ left: direction * Math.max(list.clientWidth * 0.8, 160), behavior: 'smooth' })
+  }
   const recentGames = GAMES.map(([gameKey, label]) => ({
     gameKey, label, image: GAME_ART[gameKey]
   }))
-  const mainGames = [
+  const workingMainGames = [
     ...GAMES
       .filter(([gameKey]) => gameKey !== 'color')
       .map(([gameKey, label]) => ({ gameKey, label, image: GAME_ART[gameKey] })),
+  ]
+  const mainGames = [...workingMainGames, ...OTHER_HOME_GAMES.slice(0, 4)]
+  const allGames = [
+    ...workingMainGames,
     ...OTHER_HOME_GAMES
   ]
 
@@ -969,14 +978,23 @@ function Main() {
 
         {view === 'home' && <div className="home-page">
           <section className="home-section">
-            <div className="home-section-heading"><h3>Recent</h3></div>
-            <div className="recent-game-list">
+            <div className="home-section-heading home-section-heading-with-actions">
+              <h3>Recent</h3>
+              <div className="home-section-actions">
+                <button type="button" className="home-scroll-button" aria-label="Scroll recent games left" onClick={() => scrollRecentGames(-1)}>‹</button>
+                <button type="button" className="home-scroll-button" aria-label="Scroll recent games right" onClick={() => scrollRecentGames(1)}>›</button>
+              </div>
+            </div>
+            <div className="recent-game-list" ref={recentListRef}>
               {recentGames.map(item => <HomeGameCard key={item.gameKey} item={item} cfg={cfg} onOpen={gameKey => go('game', gameKey)} variant="recent-game-card" />)}
             </div>
           </section>
 
           <section className="home-section">
-            <div className="home-section-heading"><h3>Main</h3></div>
+            <div className="home-section-heading home-section-heading-with-actions">
+              <h3>Main</h3>
+              <button type="button" className="home-view-more" onClick={() => go('all-games')}>View more <span aria-hidden="true">→</span></button>
+            </div>
             <div className="home-game-grid">
               {mainGames.map((item, index) => <HomeGameCard key={item.gameKey || item.image + index} item={item} cfg={cfg} onOpen={gameKey => go('game', gameKey)} />)}
             </div>
@@ -992,6 +1010,16 @@ function Main() {
             </div>
           </section>
         </div>}
+
+        {view === 'all-games' && <section className="home-section all-games-page">
+          <div className="all-games-title">
+            <button type="button" onClick={() => go('home')}>← Home</button>
+            <h2>All Games</h2>
+          </div>
+          <div className="home-game-grid">
+            {allGames.map((item, index) => <HomeGameCard key={item.gameKey || item.image + index} item={item} cfg={cfg} onOpen={gameKey => go('game', gameKey)} />)}
+          </div>
+        </section>}
 
         {view === 'game' && Game && <>
 
