@@ -328,17 +328,13 @@ main.player-main{width:100%;max-width:520px;min-height:calc(100vh - 60px);margin
 .recent-game-list{display:grid;grid-auto-flow:column;grid-auto-columns:calc((100% - 16px)/3);gap:8px;overflow-x:auto;overscroll-behavior-x:contain;padding:2px 1px 5px}
 .home-game-card{position:relative;display:block;width:100%;aspect-ratio:.74;overflow:hidden;padding:0;border:0;border-radius:10px;background:#e8eaf0;text-align:left;box-shadow:none}
 .home-game-card img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.home-game-card:disabled{cursor:default;opacity:1}
-.home-game-card.unavailable img{filter:brightness(.64)}
 .home-game-name{position:absolute;right:0;bottom:0;left:0;padding:22px 8px 8px;background:linear-gradient(transparent,#000b);color:#fff;font-size:12px;font-weight:800;line-height:1.15;text-shadow:0 1px 3px #000}
-.home-coming-soon{position:absolute;inset:0;display:grid;place-items:center;padding:5px;background:#0005;color:#fff;font-size:12px;font-weight:900;letter-spacing:.5px;text-align:center;text-transform:uppercase}
 .home-game-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .lottery-section-heading{display:flex;align-items:center;gap:9px;margin-bottom:10px}
 .lottery-section-heading img{width:38px;height:38px;flex:none}
 .lottery-section-heading p{margin:2px 0 0;color:#7c8798;font-size:11px}
 .lottery-game-card{aspect-ratio:1.62;border-radius:8px}
 .lottery-game-card .home-game-name{padding:18px 8px 7px;font-size:13px}
-.lottery-game-card .home-coming-soon{font-size:11px}
 @media(max-width:360px){.recent-game-list{grid-auto-columns:calc((100% - 10px)/2.3)}}
 .big{font-size:44px;font-weight:800;text-align:center;padding:10px 0}.small{color:var(--mut);font-size:12px}
 .msg{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translate(-50%, 0);background:var(--c2);padding:10px 16px;border-radius:12px;font-weight:600;z-index:200;box-shadow:0 8px 24px #0008;max-width:90%;animation:toastIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both}

@@ -196,14 +196,12 @@ function HomeGameCard({ item, cfg, onOpen, variant = '' }) {
   return (
     <button
       type="button"
-      className={`home-game-card ${variant}${active ? '' : ' unavailable'}`}
-      onClick={() => active && onOpen(item.gameKey)}
-      disabled={!active}
+      className={`home-game-card ${variant}`}
+      onClick={() => active ? onOpen(item.gameKey) : toast(`${item.label} coming soon`)}
       aria-label={active ? `Open ${item.label}` : `${item.label}, coming soon`}
     >
       <img src={item.image} alt="" loading="lazy" />
       <span className="home-game-name">{item.label}</span>
-      {!active && <span className="home-coming-soon">Coming Soon</span>}
     </button>
   )
 }
