@@ -22,6 +22,8 @@ button{background:var(--c2);border:0;border-radius:10px;padding:9px 13px;cursor:
 button:active:not(:disabled){transform:scale(.96)}button:hover:not(:disabled){filter:brightness(1.12)}button:disabled{opacity:.55;cursor:not-allowed}
 button.p{background:var(--ac);color:#04200f;border:0;font-weight:700}button.d{background:var(--bad);border:0;color:#fff}
 button[style*="var(--bad)"]{color:#fff}
+.player-shell:not(.admin-shell) button.p{color:#fff}
+.player-shell:not(.admin-shell) button.p[style*="#ffd54f"]{color:#493700}
 input,select{width:100%;background:var(--bg);border:1px solid var(--ln);border-radius:10px;padding:10px}
 input[type=range]{padding:0}input[type=checkbox]{width:auto}
 label{display:block;color:var(--mut);font-size:12px;margin:10px 0 4px}
@@ -127,6 +129,8 @@ main.player-main{width:100%;max-width:520px;min-height:calc(100vh - 60px);margin
 .history-record-details span{color:#7b879a}
 .history-record-details b{color:#46536a;font-weight:600;overflow-wrap:anywhere;text-align:right}
 .history-record-details b.history-balance{color:#16a064;font-size:15px}
+.history-record-details b.history-balance.negative{color:#e44d57}
+.history-record-details b.history-balance.positive{color:#16a064}
 .history-status{text-transform:capitalize}
 .history-status.status-approved{color:#15945b!important}
 .history-status.status-pending,.history-status.status-processing{color:#dc8b19!important}

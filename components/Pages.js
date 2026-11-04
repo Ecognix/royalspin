@@ -576,26 +576,47 @@ export function ActivityHistory({ u, initialTab = 'bets' }) {
           }
           if (tab === 'transactions') {
             const amount = Number(row.amount || 0)
-            const detail = row.details?.game
-              ? `Game: ${row.details.game}`
-              : row.details?.utr
-                ? `UTR: ${row.details.utr}`
-                : row.details?.upi
-                  ? `UPI: ${row.details.upi}`
-                  : row.details?.request_id
-                    ? `Request: ${String(row.details.request_id).slice(0, 8)}`
-                    : row.type
+            const type = String(row.type || 'Transaction').toLowerCase()
+            const game = row.details?.game
+              ? String(row.details.game).replace(/^\w/, letter => letter.toUpperCase())
+              : ''
+            const typeLabels = {
+              bet: 'Bet placed',
+              bet_fee: 'Bet fee',
+              bet_fee_refund: 'Bet fee refunded',
+              win: 'Win',
+              loss: 'Loss',
+              refund: 'Refund',
+              'deposit reward': 'Deposit reward',
+              'referral reward': 'Referral reward',
+              withdraw_hold: 'Withdrawal hold',
+              withdraw_hold_refunded: 'Withdrawal refunded',
+              'withdraw refunded': 'Withdrawal refunded'
+            }
+            const reason = row.details?.reason
+              || (game && ['bet', 'bet_fee', 'win', 'loss', 'refund', 'bet_fee_refund'].includes(type)
+                ? `${game} · ${typeLabels[type]}`
+                : typeLabels[type] || type.replace(/_/g, ' ').replace(/^\w/, letter => letter.toUpperCase()))
+            const detail = row.details?.utr
+              ? `UTR: ${row.details.utr}`
+              : row.details?.upi
+                ? `UPI: ${row.details.upi}`
+                : row.details?.request_id
+                  ? `Request: ${String(row.details.request_id).slice(0, 8)}`
+                  : game && row.details?.bet_amount
+                    ? `${game} · Bet ₹${f(row.details.bet_amount)}`
+                    : game || row.type
+            const signedAmount = `${amount >= 0 ? '+' : '−'}₹${f(Math.abs(amount))}`
             return (
               <article className="history-record" key={row.id}>
                 <div className="history-record-heading">
                   <span><HubIcon name="transactions" /></span>
-                  <b>{String(row.type || 'Transaction').replace(/^\w/, letter => letter.toUpperCase())}</b>
-                  <strong className={amount >= 0 ? 'positive' : 'negative'}>{amount >= 0 ? '+' : ''}₹{f(amount)}</strong>
+                  <b>{reason}</b>
                 </div>
                 <div className="history-record-details">
                   <div><span>Detail</span><b>{detail}</b></div>
                   <div><span>Time</span><b>{new Date(row.created_at).toLocaleString()}</b></div>
-                  <div><span>Balance</span><b className="history-balance">₹{f(row.balance_after)}</b></div>
+                  <div><span>Balance</span><b className={'history-balance ' + (amount >= 0 ? 'positive' : 'negative')}>{signedAmount}</b></div>
                 </div>
               </article>
             )
