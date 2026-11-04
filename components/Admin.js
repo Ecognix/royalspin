@@ -1068,6 +1068,8 @@ function Panel({ onOut }) {
     const g = d.games[x.game] || (d.games[x.game] = { bets: 0, volume: 0, payout: 0 })
     g.bets++; g.volume += amt; g.payout += win
   })
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+  if (!dayMap[today]) dayMap[today] = { day: today, bets: 0, volume: 0, payout: 0, games: {} }
   const dayRows = Object.values(dayMap).sort((a, b) => (a.day < b.day ? 1 : -1))
   const dayTotalPages = Math.max(1, Math.ceil(dayRows.length / dayPageSize))
   const dayDisplayed = dayRows.slice(dayPage * dayPageSize, (dayPage + 1) * dayPageSize)
