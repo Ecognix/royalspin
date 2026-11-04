@@ -121,7 +121,7 @@ export function GameHistory({ game }) {
 
 import Admin from './Admin'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { 
 
@@ -142,15 +142,11 @@ import { GAMES, ICON } from './meta'
 
 import { Dice, Limbo, Mines, Keno, Flip, Crash, Color } from './Games'
 
-import { Wallet, Support, Vault, Wager, Bonus, Referral, Profile, Settings } from './Pages'
+import { Wallet, Support, Activity, AccountHub, PromotionHub, Vault, Wager, Bonus, Referral, Profile, Settings } from './Pages'
 
 
 
 const COMP = { dice: Dice, limbo: Limbo, mines: Mines, keno: Keno, flip: Flip, crash: Crash, color: Color }
-
-const MENU = [['home', 'Games'], ['wallet', 'Wallet'], ['vault', 'Vault'], ['wager', 'Wager'], ['bonus', 'Bonus'], ['referral', 'Refer & Earn'], ['profile', 'Profile'], ['settings', 'Settings']]
-
-
 
 // Notification system - supports both simple toasts and detailed result cards
 
@@ -777,7 +773,9 @@ function Main() {
     return null
   })
 
-  const [amt, setAmt] = useState(10), [open, setOpen] = useState(false), menuRef = useRef(null)
+  const [amt, setAmt] = useState(10)
+  const [walletTab, setWalletTab] = useState('d')
+  const [activityTab, setActivityTab] = useState('bets')
 
   useEffect(() => {
     const iv1 = setInterval(tick, 200)
@@ -819,16 +817,6 @@ function Main() {
     }
   }, [me])
 
-  useEffect(() => {
-
-    const c = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setOpen(false) }
-
-    document.addEventListener('mousedown', c)
-
-    return () => document.removeEventListener('mousedown', c)
-
-  }, [])
-
   const u = me ? user() : null
 
   if (me && !u) {
@@ -854,7 +842,20 @@ function Main() {
       if (g) sessionStorage.setItem('rs-game', g)
       else if (v !== 'game') sessionStorage.removeItem('rs-game')
     }
-    setOpen(false)
+  }
+
+  const openWallet = (tab = 'd') => {
+    setWalletTab(tab)
+    go('wallet')
+  }
+
+  const openActivity = (tab = 'bets') => {
+    setActivityTab(tab)
+    go('activity')
+  }
+
+  const openSupport = () => {
+    window.dispatchEvent(new CustomEvent('rs-open-support'))
   }
 
   const logout = () => {
@@ -871,66 +872,26 @@ function Main() {
 
   
 
-  const menuItems = isAdmin 
-
-    ? [...MENU, ['admin', 'Admin Panel']]
-
-    : MENU
-
-  
-
   return (
 
     <>
 
-      <header>
+      <div className={view === 'admin' ? 'player-shell admin-shell' : 'player-shell'}>
+
+      {view !== 'admin' && <header className="player-header">
 
         <span className="logo" style={{ cursor: 'pointer' }} onClick={() => go('home')}>♠ Royal Spin</span>
 
-        <div className="row" style={{ flex: 'none', gap: 10 }}>
-
-          <div style={{ display: 'inline-flex', alignItems: 'center', background: '#000000', border: '1px solid #222', borderRadius: 20, padding: '3px 4px 3px 12px', gap: 8, height: 38, boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
-            <span style={{ cursor: 'pointer', fontWeight: 800, color: 'var(--ac)', fontSize: 14, whiteSpace: 'nowrap', letterSpacing: '0.2px' }} onClick={() => go('wallet')}>
-              {u.hide_balance ? '••••' : '₹' + f(u.balance)}
-            </span>
-            <button 
-              type="button"
-              onClick={() => go('wallet')}
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: '50%',
-                background: 'var(--ac)',
-                color: '#000000',
-                border: 'none',
-                fontSize: 18,
-                fontWeight: 900,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                padding: 0,
-                lineHeight: 1,
-                flexShrink: 0
-              }}
-            >
-              <span style={{ transform: 'translateY(-1px)', display: 'block', pointerEvents: 'none' }}>+</span>
-            </button>
-          </div>
-
-          <div className="menu" ref={menuRef}>
-
-            <button className="av" onClick={() => setOpen((o) => !o)}>👤</button>
-
-            {open && <div className="dd">{menuItems.map(([k, l]) => <button key={k} onClick={() => go(k)}>{l}</button>)}<button onClick={logout}>Log out</button></div>}
-
-          </div>
-
+        <div className="player-header-actions">
+          <button className="player-balance" type="button" onClick={() => openWallet('d')}>
+            <span>Total balance</span><b>{u.hide_balance ? '••••' : `₹${f(u.balance)}`}</b>
+          </button>
+          <button className="player-account-button" type="button" onClick={() => go('account')} aria-label="Account">♙</button>
         </div>
 
-      </header>
+      </header>}
 
-      <main>
+      <main className={view === 'admin' ? '' : 'player-main'}>
 
         {view === 'home' && <>
 
@@ -982,7 +943,7 @@ function Main() {
 
           </div></>}
 
-        {view === 'wallet' && <Wallet u={u} me={me} />}
+        {view === 'wallet' && <Wallet u={u} me={me} initialTab={walletTab} />}
 
         {view === 'vault' && <Vault u={u} />}
 
@@ -998,10 +959,51 @@ function Main() {
 
         {view === 'admin' && <Admin u={u} />}
 
+        {view === 'activity' && <Activity u={u} initialTab={activityTab} />}
+
+        {view === 'promotion' && <PromotionHub u={u} />}
+
+        {view === 'account' && (
+          <AccountHub
+            u={u}
+            isAdmin={isAdmin}
+            onWallet={openWallet}
+            onActivity={openActivity}
+            onNavigate={go}
+            onSupport={openSupport}
+            onLogout={logout}
+          />
+        )}
+
       </main>
 
       {!isAdmin && <Support u={u} />}
 
+      {view !== 'admin' && (
+        <nav className="player-nav" aria-label="Main navigation">
+          {[
+            ['home', '⌂', 'Home'],
+            ['activity', '▤', 'Activity'],
+            ['promotion', '✦', 'Promotion'],
+            ['account', '♙', 'Account']
+          ].map(([destination, icon, label]) => {
+            const active = destination === 'home'
+              ? ['home', 'game'].includes(view)
+              : destination === 'activity'
+                ? view === 'activity'
+                : destination === 'promotion'
+                  ? ['promotion', 'referral'].includes(view)
+                  : ['account', 'wallet', 'vault', 'wager', 'bonus', 'profile', 'settings'].includes(view)
+            return (
+              <button key={destination} className={active ? 'active' : ''} onClick={() => go(destination)}>
+                <span>{icon}</span><small>{label}</small>
+              </button>
+            )
+          })}
+        </nav>
+      )}
+
+      </div>
     </>
 
   )

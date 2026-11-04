@@ -6,8 +6,8 @@ import {
   supabase, REFERRAL_REWARD_PERCENT, BET_FEE_WAGER_STEP, BET_FEE_AMOUNT, MIN_WITHDRAWAL_AMOUNT
 } from '../lib/supabase-db'
 
-export function Wallet({ u, me }) {
-  const [tab, setTab] = useState('d')
+export function Wallet({ u, me, initialTab = 'd' }) {
+  const [tab, setTab] = useState(initialTab)
   const [dq, setDq] = useState(500)
   const [utr, setUtr] = useState('')
   const [wu, setWu] = useState('')
@@ -27,6 +27,10 @@ export function Wallet({ u, me }) {
     refreshUser()
     fetchData()
   }, [me, u?.id])
+
+  useEffect(() => {
+    setTab(initialTab)
+  }, [initialTab])
 
   const fetchData = async () => {
     try {
@@ -338,6 +342,215 @@ export function Wallet({ u, me }) {
   )
 }
 
+export function Activity({ u, initialTab = 'bets' }) {
+  const [tab, setTab] = useState(initialTab)
+  const [bets, setBets] = useState([])
+  const [transactions, setTransactions] = useState([])
+  const [requests, setRequests] = useState([])
+  const [page, setPage] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+
+  async function loadActivity() {
+    if (!u?.id) return
+    setLoading(true)
+    setLoadError('')
+    try {
+      const [betResult, transactionResult, requestResult] = await Promise.all([
+        supabase.from('bets').select('id,game,amount,win_amount,created_at').eq('user_id', u.id).order('created_at', { ascending: false }).limit(200),
+        supabase.from('transactions').select('id,type,amount,balance_after,created_at').eq('user_id', u.id).order('created_at', { ascending: false }).limit(200),
+        supabase.from('requests').select('id,type,amount,status,upi_id,created_at').eq('user_id', u.id).in('type', ['deposit', 'withdraw']).order('created_at', { ascending: false }).limit(200)
+      ])
+      const firstError = betResult.error || transactionResult.error || requestResult.error
+      if (firstError) {
+        console.error('Activity history load error:', firstError)
+        setLoadError('Could not load all activity. Please refresh to try again.')
+      }
+      setBets(betResult.data || [])
+      setTransactions(transactionResult.data || [])
+      setRequests(requestResult.data || [])
+    } catch (error) {
+      console.error('Activity history load error:', error)
+      setLoadError('Could not load activity. Please refresh to try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    setTab(initialTab)
+    setPage(0)
+    loadActivity()
+  }, [u?.id, initialTab])
+
+  const rows = tab === 'bets' ? bets
+    : tab === 'transactions' ? transactions
+      : requests.filter(request => request.type === tab)
+  const pageSize = 10
+  const pages = Math.max(1, Math.ceil(rows.length / pageSize))
+  const shown = rows.slice(page * pageSize, (page + 1) * pageSize)
+
+  function chooseTab(nextTab) {
+    setTab(nextTab)
+    setPage(0)
+  }
+
+  return (
+    <div className="activity-page">
+      <div className="page-title"><div><h2>Activity</h2><p>Review your recent account history.</p></div><button onClick={loadActivity}>Refresh</button></div>
+      <div className="activity-tabs">
+        {[['bets', 'Game history'], ['transactions', 'Transactions'], ['deposit', 'Deposits'], ['withdraw', 'Withdrawals']].map(([key, label]) => (
+          <button key={key} className={tab === key ? 'selected' : ''} onClick={() => chooseTab(key)}>{label}</button>
+        ))}
+      </div>
+      {loadError && <p className="page-error">{loadError}</p>}
+      <div className="activity-list">
+        {shown.map(row => {
+          if (tab === 'bets') {
+            const net = Number(row.win_amount || 0) - Number(row.amount || 0)
+            return (
+              <div className="activity-row" key={row.id}>
+                <div><b>{String(row.game || 'Game').replace(/^\w/, letter => letter.toUpperCase())} · {net > 0 ? 'Win' : 'Loss'}</b><small>{new Date(row.created_at).toLocaleString()} · Bet ₹{f(row.amount)}</small></div>
+                <strong className={net > 0 ? 'positive' : 'negative'}>{net > 0 ? '+' : ''}₹{f(net)}</strong>
+              </div>
+            )
+          }
+          if (tab === 'transactions') {
+            const amount = Number(row.amount || 0)
+            return (
+              <div className="activity-row" key={row.id}>
+                <div><b>{row.type}</b><small>{new Date(row.created_at).toLocaleString()} · Balance ₹{f(row.balance_after)}</small></div>
+                <strong className={amount >= 0 ? 'positive' : 'negative'}>{amount >= 0 ? '+' : ''}₹{f(amount)}</strong>
+              </div>
+            )
+          }
+          return (
+            <div className="activity-row" key={row.id}>
+              <div><b>{tab === 'deposit' ? 'Deposit request' : 'Withdrawal request'}</b><small>{new Date(row.created_at).toLocaleString()} · {row.upi_id || 'No reference'}</small></div>
+              <strong>₹{f(row.amount)}<small className="activity-status">{row.status}</small></strong>
+            </div>
+          )
+        })}
+        {!shown.length && <div className="activity-empty">{loading ? 'Loading activity…' : 'No activity yet'}</div>}
+      </div>
+      {pages > 1 && (
+        <div className="activity-pagination">
+          <button disabled={page === 0} onClick={() => setPage(current => current - 1)}>Previous</button>
+          <span>Page {page + 1} of {pages}</span>
+          <button disabled={page + 1 >= pages} onClick={() => setPage(current => current + 1)}>Next</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function AccountHub({ u, isAdmin, onWallet, onActivity, onNavigate, onSupport, onLogout }) {
+  const comingSoon = () => toast('Coming soon')
+  const accountOptions = [
+    { icon: '▤', label: 'Notifications', action: comingSoon },
+    { icon: '🎁', label: 'Gifts', action: comingSoon },
+    { icon: '▣', label: 'Top-up coupons', action: comingSoon },
+    { icon: '▥', label: 'Game statistics', action: comingSoon },
+    { icon: '◎', label: 'Language', detail: 'English', action: comingSoon }
+  ]
+  const services = [
+    { icon: '⚙', label: 'Settings', action: () => onNavigate('settings') },
+    { icon: '✉', label: 'Feedback', action: comingSoon },
+    { icon: '⚑', label: 'Announcements', action: comingSoon },
+    { icon: '◉', label: 'Customer service', action: onSupport },
+    { icon: '▤', label: 'Beginner guide', action: comingSoon },
+    { icon: '◇', label: 'About Royal Spin', action: comingSoon }
+  ]
+
+  return (
+    <div className="account-page">
+      <section className="account-hero">
+        <div className="account-user">
+          <div className="account-avatar">{String(u.username || u.name || 'R').slice(0, 1).toUpperCase()}</div>
+          <div><b>{u.username || u.name || 'Royal Spin Player'}</b><small>+91 {u.phone}</small></div>
+          <span className="account-tier">PLAYER</span>
+        </div>
+        <div className="account-balance">
+          <span>Total balance</span>
+          <strong>{u.hide_balance ? '••••••' : `₹${f(u.balance)}`}</strong>
+          <button onClick={() => onWallet('d')}>Open wallet</button>
+        </div>
+      </section>
+
+      <div className="account-shortcuts">
+        {[
+          ['▣', 'Wallet', () => onWallet('d')],
+          ['＋', 'Deposit', () => onWallet('d')],
+          ['↗', 'Withdraw', () => onWallet('w')],
+          ['◆', 'VIP', comingSoon]
+        ].map(([icon, label, action]) => (
+          <button key={label} onClick={action}><span>{icon}</span>{label}</button>
+        ))}
+      </div>
+
+      <div className="account-history-grid">
+        {[
+          ['▤', 'Game history', () => onActivity('bets')],
+          ['⇄', 'Transactions', () => onActivity('transactions')],
+          ['↓', 'Deposit history', () => onActivity('deposit')],
+          ['↑', 'Withdraw history', () => onActivity('withdraw')]
+        ].map(([icon, label, action]) => (
+          <button key={label} onClick={action}><span>{icon}</span><b>{label}</b><small>View details</small></button>
+        ))}
+      </div>
+
+      <section className="account-section">
+        {accountOptions.map(option => (
+          <button className="account-list-row" key={option.label} onClick={option.action}>
+            <span className="account-option-icon">{option.icon}</span><b>{option.label}</b>
+            {option.detail && <small>{option.detail}</small>}<span className="account-chevron">›</span>
+          </button>
+        ))}
+      </section>
+
+      <section className="account-section account-service">
+        <h3>Service center</h3>
+        <div>{services.map(service => (
+          <button key={service.label} onClick={service.action}><span>{service.icon}</span><small>{service.label}</small></button>
+        ))}</div>
+      </section>
+
+      <section className="account-systems">
+        <button onClick={() => onNavigate('wager')}><span>◷</span><b>Wager requirement</b><strong>₹{f(u.bonus_needed || 0)}</strong></button>
+        <button onClick={() => onNavigate('bonus')}><span>✦</span><b>Bonus balance</b><strong>₹{f(u.bonus_balance || 0)}</strong></button>
+        <button onClick={() => onNavigate('vault')}><span>▣</span><b>Vault</b><strong>₹{f(u.vault_balance || 0)}</strong></button>
+        <button onClick={() => onNavigate('profile')}><span>♙</span><b>Profile & stats</b><strong>›</strong></button>
+      </section>
+
+      {isAdmin && <button className="account-admin" onClick={() => onNavigate('admin')}>Open Admin Panel</button>}
+      <button className="account-logout" onClick={onLogout}>Log out</button>
+    </div>
+  )
+}
+
+export function PromotionHub({ u }) {
+  const comingSoon = () => toast('Coming soon')
+  return (
+    <div className="promotion-page">
+      <div className="page-title"><div><h2>Promotion</h2><p>Rewards and invitations</p></div></div>
+      <Referral u={u} />
+      <section className="promotion-grid">
+        {[
+          ['♧', 'Invite bonus'],
+          ['▣', 'Betting rewards'],
+          ['🏆', 'Jackpot'],
+          ['🎁', 'First gift'],
+          ['◉', 'Invite wheel'],
+          ['▤', 'Attendance bonus'],
+          ['✦', 'Special events']
+        ].map(([icon, title]) => (
+          <button key={title} onClick={comingSoon}><span>{icon}</span><b>{title}</b><small>Coming soon</small></button>
+        ))}
+      </section>
+    </div>
+  )
+}
+
 export function Support({ u }) {
   const [messages, setMessages] = useState([])
   const [draft, setDraft] = useState('')
@@ -382,7 +595,12 @@ export function Support({ u }) {
     setLoading(true)
     loadMessages()
     const timer = setInterval(loadMessages, 10000)
-    return () => clearInterval(timer)
+    const openChat = () => setIsOpen(true)
+    window.addEventListener('rs-open-support', openChat)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('rs-open-support', openChat)
+    }
   }, [u?.id])
 
   useEffect(() => {
