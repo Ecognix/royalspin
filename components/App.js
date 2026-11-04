@@ -608,11 +608,13 @@ function Auth({ onIn }) {
 
   const [un, setUn] = useState('')
 
-  const [referralCode] = useState(() => (
+  const [referralCode, setReferralCode] = useState(() => (
     typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('ref') || ''
   ))
 
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
 
 
@@ -636,7 +638,7 @@ function Auth({ onIn }) {
 
         
 
-        const res = await signup(ph, pw, un || undefined, referralCode || undefined)
+        const res = await signup(ph, pw, un || undefined, referralCode.trim() || undefined)
 
         if (res.error) return toast(res.error)
 
@@ -663,51 +665,94 @@ function Auth({ onIn }) {
 
 
   return (
+    <div className="auth-screen">
+      <section className="auth-panel">
+        <div className="auth-brand">
+          <div className="auth-mark">♠</div>
+          <div>
+            <div className="auth-brand-name">ROYAL SPIN</div>
+            <div className="auth-brand-caption">Play. Spin. Enjoy.</div>
+          </div>
+        </div>
+        <div className="auth-intro">
+          <h1>{m === 'login' ? 'Welcome back' : 'Join Royal Spin'}</h1>
+          <p>{m === 'login' ? 'Sign in with your phone number to continue.' : 'Create your account with a phone number.'}</p>
+        </div>
 
-    <div className="auth"><div className="card">
+        <div className="auth-form">
+          <div className="auth-switch" role="tablist" aria-label="Account access">
+            <button type="button" role="tab" aria-selected={m === 'login'} className={m === 'login' ? 'selected' : ''} onClick={() => setM('login')}>Log in</button>
+            <button type="button" role="tab" aria-selected={m === 'signup'} className={m === 'signup' ? 'selected' : ''} onClick={() => setM('signup')}>Register</button>
+          </div>
 
-      <div className="logo" style={{ fontSize: 22 }}>♠ Royal Spin</div>
+          <form onSubmit={(event) => { event.preventDefault(); go() }}>
+            <label className="auth-label" htmlFor="auth-phone">Phone number</label>
+            <div className="auth-phone">
+              <span>+91</span>
+              <input
+                id="auth-phone"
+                inputMode="numeric"
+                autoComplete="tel-national"
+                maxLength={10}
+                placeholder="Enter 10 digit number"
+                value={ph}
+                onChange={(event) => setPh(event.target.value.replace(/\D/g, '').slice(0, 10))}
+              />
+            </div>
 
-      <p className="small">Enter your credentials to continue.</p>
+            {m === 'signup' && (
+              <>
+                <label className="auth-label" htmlFor="auth-username">Username <span>(optional)</span></label>
+                <input id="auth-username" className="auth-input" autoComplete="username" placeholder="Choose a username" value={un} onChange={(event) => setUn(event.target.value.trim())} />
+              </>
+            )}
 
-      <div className="row">
+            <label className="auth-label" htmlFor="auth-password">{m === 'login' ? 'Password' : 'Set password'}</label>
+            <div className="auth-password">
+              <input
+                id="auth-password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete={m === 'login' ? 'current-password' : 'new-password'}
+                placeholder={m === 'login' ? 'Enter your password' : 'At least 6 characters'}
+                value={pw}
+                onChange={(event) => setPw(event.target.value)}
+              />
+              <button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? 'Hide' : 'Show'}</button>
+            </div>
 
-        <button className={m === 'login' ? 'p' : ''} onClick={() => setM('login')}>Login</button>
+            {m === 'signup' && (
+              <>
+                <label className="auth-label" htmlFor="auth-confirm">Confirm password</label>
+                <div className="auth-password">
+                  <input
+                    id="auth-confirm"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    placeholder="Enter your password again"
+                    value={cp}
+                    onChange={(event) => setCp(event.target.value)}
+                  />
+                  <button type="button" onClick={() => setShowConfirmPassword(value => !value)} aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}>{showConfirmPassword ? 'Hide' : 'Show'}</button>
+                </div>
+                <label className="auth-label" htmlFor="auth-referral">Invite code <span>(optional)</span></label>
+                <input id="auth-referral" className="auth-input" placeholder="Enter invite code" value={referralCode} onChange={(event) => setReferralCode(event.target.value.trim())} />
+              </>
+            )}
 
-        <button className={m === 'signup' ? 'p' : ''} onClick={() => setM('signup')}>Sign up</button>
+            <button className="auth-submit" type="submit" disabled={loading}>
+              {loading ? 'Please wait…' : m === 'login' ? 'Log in' : 'Create account'}
+            </button>
+          </form>
 
-      </div>
-
-      <label>Mobile number</label>
-
-      <input inputMode="numeric" placeholder="10 digit number" value={ph} onChange={(e) => setPh(e.target.value.trim())} />
-
-      <label>Password</label>
-
-      <input type="password" placeholder="min 6 characters" value={pw} onChange={(e) => setPw(e.target.value)} />
-
-      {m === 'signup' && <>
-
-        {referralCode && <p className="small">Referral link applied.</p>}
-
-        <label>Username (optional)</label>
-
-        <input placeholder="Choose username" value={un} onChange={(e) => setUn(e.target.value.trim())} />
-
-        <label>Confirm password</label>
-
-        <input type="password" placeholder="re-enter password" value={cp} onChange={(e) => setCp(e.target.value)} />
-
-      </>}
-
-      <button className="p" style={{ width: '100%', marginTop: 14 }} onClick={go} disabled={loading}>
-
-        {loading ? '...' : m === 'login' ? 'Login' : 'Create account'}
-
-      </button>
-
-    </div></div>
-
+          <p className="auth-footnote">
+            {m === 'login' ? 'New to Royal Spin?' : 'Already have an account?'}
+            <button type="button" onClick={() => setM(m === 'login' ? 'signup' : 'login')}>
+              {m === 'login' ? 'Create account' : 'Log in'}
+            </button>
+          </p>
+        </div>
+      </section>
+    </div>
   )
 
 }
