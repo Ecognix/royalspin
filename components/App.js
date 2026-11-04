@@ -142,7 +142,7 @@ import { GAMES, ICON } from './meta'
 
 import { Dice, Limbo, Mines, Keno, Flip, Crash, Color } from './Games'
 
-import { Wallet, Support, Activity, AccountHub, PromotionHub, Vault, Wager, Bonus, Referral, Profile, Settings } from './Pages'
+import { Wallet, Support, Activity, AccountHub, PromotionHub, HubIcon, Vault, Wager, Bonus, Referral, Profile, Settings } from './Pages'
 
 
 
@@ -982,10 +982,10 @@ function Main() {
       {view !== 'admin' && (
         <nav className="player-nav" aria-label="Main navigation">
           {[
-            ['home', '⌂', 'Home'],
-            ['activity', '▤', 'Activity'],
-            ['promotion', '✦', 'Promotion'],
-            ['account', '♙', 'Account']
+            ['home', 'home', 'Home'],
+            ['activity', 'activity', 'Activity'],
+            ['promotion', 'promotion', 'Promotion'],
+            ['account', 'account', 'Account']
           ].map(([destination, icon, label]) => {
             const active = destination === 'home'
               ? ['home', 'game'].includes(view)
@@ -996,7 +996,7 @@ function Main() {
                   : ['account', 'wallet', 'vault', 'wager', 'bonus', 'profile', 'settings'].includes(view)
             return (
               <button key={destination} className={active ? 'active' : ''} onClick={() => go(destination)}>
-                <span>{icon}</span><small>{label}</small>
+                <span><HubIcon name={icon} /></span><small>{label}</small>
               </button>
             )
           })}

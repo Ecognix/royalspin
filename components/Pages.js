@@ -6,6 +6,37 @@ import {
   supabase, REFERRAL_REWARD_PERCENT, BET_FEE_WAGER_STEP, BET_FEE_AMOUNT, MIN_WITHDRAWAL_AMOUNT
 } from '../lib/supabase-db'
 
+export function HubIcon({ name }) {
+  const icons = {
+    home: <><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" /></>,
+    activity: <><path d="M4 19V9m5 10V5m5 14v-7m5 7V3" /><path d="M2 21h20" /></>,
+    promotion: <><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" /></>,
+    account: <><circle cx="12" cy="8" r="3.5" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
+    wallet: <><rect x="3" y="6" width="18" height="15" rx="2" /><path d="M3 9h18M16 14h2" /><path d="M6 6V4a1 1 0 0 1 1-1h12" /></>,
+    deposit: <><path d="M12 16V4m-5 5 5-5 5 5" /><path d="M4 14v6a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-6" /></>,
+    withdraw: <><path d="M12 4v12m5-5-5 5-5-5" /><path d="M4 14v6a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-6" /></>,
+    vip: <><path d="m12 3 2.2 5 5.4.5-4.1 3.6 1.2 5.2-4.7-2.8-4.7 2.8 1.2-5.2-4.1-3.6 5.4-.5z" /><path d="M5 20h14" /></>,
+    history: <><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8" /><path d="M3 3v5h5m4-1v5l3 2" /></>,
+    transactions: <><path d="M4 7h15l-3-3m4 13H5l3 3" /><path d="M19 7v4M5 17v-4" /></>,
+    notifications: <><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></>,
+    gift: <><rect x="3" y="9" width="18" height="12" rx="1" /><path d="M2 6h20v4H2zm10 0v15M12 6H8.5a2 2 0 1 1 2-2c0 1.1 1.5 2 1.5 2zm0 0h3.5a2 2 0 1 0-2-2c0 1.1-1.5 2-1.5 2z" /></>,
+    coupon: <><path d="M3 6h18v4a2 2 0 0 0 0 4v4H3v-4a2 2 0 0 0 0-4z" /><path d="M13 8v2m0 4v2" /></>,
+    chart: <><path d="M4 20V10m5 10V4m5 16v-7m5 7V7" /><path d="M2 21h20" /></>,
+    language: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" /></>,
+    settings: <><circle cx="12" cy="12" r="3" /><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.7a8 8 0 0 1-1.7 1l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.7-1l-1.7.7-1.4-2.4 1.4-1.1a7 7 0 0 1 0-2l-1.4-1.1 1.4-2.4 1.7.7a8 8 0 0 1 1.7-1l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.7 1l1.7-.7 1.4 2.4-1.4 1.1a7 7 0 0 1 0 2z" /></>,
+    feedback: <><path d="M4 5h16v12H9l-5 4z" /><path d="M8 9h8m-8 4h5" /></>,
+    announcement: <><path d="M4 14V9l15-5v15L4 14z" /><path d="m7 15 2 6h4l-2-5M19 9h2v5h-2" /></>,
+    support: <><path d="M4 13v-2a8 8 0 0 1 16 0v2" /><path d="M4 13h3v6H5a2 2 0 0 1-2-2v-2a2 2 0 0 1 1-2zm16 0h-3v6h2a2 2 0 0 0 2-2v-2a2 2 0 0 0-1-2zM17 20a5 5 0 0 1-5 2h-1" /></>,
+    guide: <><path d="M4 5a2 2 0 0 1 2-2h13v17H6a2 2 0 0 1-2-2z" /><path d="M4 17a2 2 0 0 1 2-2h13M8 7h7m-7 4h7" /></>,
+    about: <><circle cx="12" cy="12" r="9" /><path d="M12 11v6m0-10h.01" /></>,
+    wager: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+    bonus: <><path d="m12 3 2.3 5.1 5.6.6-4.2 3.8 1.2 5.5-4.9-2.9-4.9 2.9 1.2-5.5-4.2-3.8 5.6-.6z" /><path d="m9 20 3 2 3-2" /></>,
+    vault: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M7 5V3h10v2m-5 5v6m-3-3h6" /></>,
+    profile: <><circle cx="12" cy="8" r="3.5" /><path d="M5 21a7 7 0 0 1 14 0" /></>
+  }
+  return <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{icons[name] || icons.about}</svg>
+}
+
 export function Wallet({ u, me, initialTab = 'd' }) {
   const [tab, setTab] = useState(initialTab)
   const [dq, setDq] = useState(500)
@@ -72,6 +103,16 @@ export function Wallet({ u, me, initialTab = 'd' }) {
 
   const link = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=RoyalSpin&am=${dq}&cu=INR`
 
+  async function copyDepositUpi() {
+    try {
+      await navigator.clipboard.writeText(upiId)
+      toast('UPI ID copied')
+    } catch (error) {
+      console.error('Deposit UPI copy error:', error)
+      toast('Could not copy UPI ID')
+    }
+  }
+
   async function dsub() {
     if (!/^\d{12}$/.test(utr.trim())) return toast('UTR must be 12 digits')
     if (!(dq >= 1)) return toast('Enter amount')
@@ -121,155 +162,129 @@ export function Wallet({ u, me, initialTab = 'd' }) {
   const displayedBets = bets.slice(betPage * PAGE_SIZE, (betPage + 1) * PAGE_SIZE)
 
   return (
-    <>
-      <div className="card">
-        <b>Wallet</b>
-        <div className="big">₹{f(u.balance)}</div>
-        <div className="row">
-          <button className={tab === 'd' ? 'p' : ''} onClick={() => setTab('d')}>Deposit</button>
-          <button className={tab === 'w' ? 'p' : ''} onClick={() => setTab('w')}>Withdraw</button>
+    <div className="wallet-page">
+      <div className="page-title"><div><h2>Wallet</h2><p>Manage your balance securely.</p></div></div>
+      <div className="wallet-balance-card">
+        <small>Available balance</small>
+        <strong>{u.hide_balance ? '••••••' : `₹${f(u.balance)}`}</strong>
+        <div className="wallet-tabs">
+          <button className={tab === 'd' ? 'selected' : ''} onClick={() => setTab('d')}>＋ Deposit</button>
+          <button className={tab === 'w' ? 'selected' : ''} onClick={() => setTab('w')}>↗ Withdraw</button>
         </div>
       </div>
 
       {tab === 'd' ? (
-        <div className="card">
-          <b>UPI Deposit</b>
-          <p className="small">Approved deposits receive an extra 50% in your wallet. Wager 2× your deposit before withdrawing.</p>
-          <label>Amount</label>
-          <input type="number" value={dq} onChange={(e) => setDq(e.target.value)} />
-          <div style={{ textAlign: 'center', margin: '14px 0' }}>
-            <div className="qr"><QRCodeSVG value={link} size={170} /></div>
-            <p className="small" style={{ marginTop: 6 }}>Scan QR to pay</p>
+        <div className="wallet-section">
+          <h2>Add money</h2>
+          <p>Choose an available payment method and submit your payment reference.</p>
+          <div className="wallet-channel-grid">
+            <div className="wallet-channel selected">
+              <span className="wallet-channel-icon"><HubIcon name="deposit" /></span>
+              <span><b>UPI QR</b><small>Available now</small></span>
+            </div>
+            <button type="button" className="wallet-channel" onClick={() => toast('Other payment methods coming soon')}>
+              <span className="wallet-channel-icon"><HubIcon name="wallet" /></span>
+              <span><b>More methods</b><small>Coming soon</small></span>
+            </button>
           </div>
-          <label>12 digit UTR number</label>
-          <input inputMode="numeric" maxLength={12} value={utr} onChange={(e) => setUtr(e.target.value)} placeholder="Enter 12 digit UTR" />
-          <button className="p" style={{ width: '100%', marginTop: 12 }} onClick={dsub}>Submit UTR</button>
+
+          <label className="wallet-field-label">Deposit amount</label>
+          <div className="wallet-amount-grid">
+            {[100, 500, 1000, 3000].map(amount => (
+              <button type="button" key={amount} className={Number(dq) === amount ? 'selected' : ''} onClick={() => setDq(amount)}>₹{amount >= 1000 ? `${amount / 1000}k` : amount}</button>
+            ))}
+          </div>
+          <input type="number" min="1" value={dq} onChange={(e) => setDq(e.target.value)} aria-label="Deposit amount" />
+
+          <div className="wallet-qr-box">
+            <b>Scan with any UPI app</b>
+            <div><QRCodeSVG value={link} size={180} /></div>
+            <div className="wallet-upi">
+              <span>{upiId}</span>
+              <button type="button" onClick={copyDepositUpi}>Copy UPI ID</button>
+            </div>
+          </div>
+
+          <label className="wallet-field-label">12-digit UTR / transaction ID</label>
+          <input inputMode="numeric" maxLength={12} value={utr} onChange={(e) => setUtr(e.target.value.replace(/\D/g, '').slice(0, 12))} placeholder="Enter the UTR after payment" />
+          <button className="wallet-submit" onClick={dsub}>Submit deposit request</button>
+          <div className="wallet-instructions">
+            <b>Deposit instructions</b>
+            Pay the selected amount to the UPI ID shown above, then submit the 12-digit UTR. Your request will appear in history while the team verifies it. Approved deposits receive the configured 50% wallet bonus; a 2× deposit wager is required before withdrawal.
+          </div>
         </div>
       ) : (
-        <div className="card">
-          <b>Withdraw Funds</b>
-          <div style={{ display: 'flex', gap: 8, margin: '10px 0 14px' }}>
-            <button 
-              type="button" 
-              className={wMethod === 'upi' ? 'p' : ''} 
-              style={{ flex: 1, padding: '7px 10px', fontSize: 13 }}
-              onClick={() => setWMethod('upi')}
-            >
-              UPI Transfer
+        <div className="wallet-section">
+          <h2>Withdraw funds</h2>
+          <p>Choose where you want to receive your withdrawal.</p>
+          {Number(u.bonus_needed || 0) > 0 && (
+            <div className="wallet-lock">🔒 Withdrawals are locked</div>
+          )}
+          <div className="wallet-channel-grid">
+            <button type="button" className={`wallet-channel ${wMethod === 'upi' ? 'selected' : ''}`} onClick={() => setWMethod('upi')}>
+              <span className="wallet-channel-icon"><HubIcon name="withdraw" /></span><span><b>UPI transfer</b><small>Send to a UPI ID</small></span>
             </button>
-            <button 
-              type="button" 
-              className={wMethod === 'bank' ? 'p' : ''} 
-              style={{ flex: 1, padding: '7px 10px', fontSize: 13 }}
-              onClick={() => setWMethod('bank')}
-            >
-              Bank Transfer
+            <button type="button" className={`wallet-channel ${wMethod === 'bank' ? 'selected' : ''}`} onClick={() => setWMethod('bank')}>
+              <span className="wallet-channel-icon"><HubIcon name="wallet" /></span><span><b>Bank transfer</b><small>Send to a bank account</small></span>
             </button>
           </div>
 
           {wMethod === 'upi' ? (
             <>
-              <label>UPI ID</label>
-              <input placeholder="name@bank (e.g. 9876543210@ybl)" value={wu} onChange={(e) => setWu(e.target.value)} />
+              <label className="wallet-field-label">UPI ID</label>
+              <input placeholder="name@bank" value={wu} onChange={(e) => setWu(e.target.value)} />
             </>
           ) : (
             <>
-              <label>Account Holder Name</label>
+              <label className="wallet-field-label">Account holder name</label>
               <input placeholder="Name as in bank account" value={bankHolder} onChange={(e) => setBankHolder(e.target.value)} />
-              <label>Bank Name (Optional)</label>
-              <input placeholder="e.g. SBI, HDFC, ICICI" value={bankName} onChange={(e) => setBankName(e.target.value)} />
-              <label>Account Number</label>
+              <label className="wallet-field-label">Bank name <span>(optional)</span></label>
+              <input placeholder="Enter bank name" value={bankName} onChange={(e) => setBankName(e.target.value)} />
+              <label className="wallet-field-label">Account number</label>
               <input placeholder="Enter bank account number" value={bankAcc} onChange={(e) => setBankAcc(e.target.value)} />
-              <label>IFSC Code</label>
-              <input placeholder="e.g. SBIN0001234" value={bankIfsc} onChange={(e) => setBankIfsc(e.target.value)} style={{ textTransform: 'uppercase' }} />
+              <label className="wallet-field-label">IFSC code</label>
+              <input placeholder="Enter IFSC code" value={bankIfsc} onChange={(e) => setBankIfsc(e.target.value.toUpperCase())} />
             </>
           )}
 
-          <label style={{ marginTop: 8 }}>Amount (₹)</label>
+          <label className="wallet-field-label">Withdrawal amount</label>
+          <div className="wallet-amount-grid">
+            {[1000, 2000, 5000, 10000].map(amount => (
+              <button type="button" key={amount} className={Number(wa) === amount ? 'selected' : ''} disabled={amount > Number(u.balance || 0)} onClick={() => setWa(amount)}>₹{amount >= 1000 ? `${amount / 1000}k` : amount}</button>
+            ))}
+          </div>
           <input type="number" min={MIN_WITHDRAWAL_AMOUNT} value={wa} onChange={(e) => setWa(e.target.value)} placeholder="Minimum ₹1,000" />
+          <p style={{ marginTop: 8, fontSize: 12 }}>Minimum withdrawal: ₹{f(MIN_WITHDRAWAL_AMOUNT)}</p>
           <button
-            className="p"
-            style={{ width: '100%', marginTop: 14 }}
+            className="wallet-submit"
             onClick={wsub}
             disabled={Number(u.bonus_needed || 0) > 0}
           >
-            {Number(u.bonus_needed || 0) > 0 ? 'Request Withdrawal (Locked)' : 'Request Withdrawal'}
+            {Number(u.bonus_needed || 0) > 0 ? '🔒 Withdrawal locked' : 'Request withdrawal'}
           </button>
         </div>
       )}
 
-      {/* Modern Request History Card with Status Badges & 10-Item Pagination */}
-      <div className="card" style={{ marginTop: 14 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <b>Deposit / Withdrawal Requests</b>
-          <button onClick={fetchData} style={{ padding: '3px 8px', fontSize: 11, background: 'var(--c2)' }}>Refresh</button>
+      <div className="wallet-section">
+        <div className="wallet-history-heading">
+          <b>Deposit & withdrawal history</b>
+          <button onClick={fetchData}>Refresh</button>
         </div>
-        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ color: 'var(--mut)', borderBottom: '1px solid var(--ln)', textAlign: 'left' }}>
-                <th style={{ padding: '8px 6px' }}>Type</th>
-                <th style={{ padding: '8px 6px' }}>Amount</th>
-                <th style={{ padding: '8px 6px' }}>Reference</th>
-                <th style={{ padding: '8px 6px', textAlign: 'right' }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayedReqs.map((r) => {
-                const isApproved = r.status === 'approved'
-                const isRejected = r.status === 'rejected'
-                const statusBg = isApproved ? 'rgba(46,230,122,0.12)' : isRejected ? 'rgba(255,90,90,0.12)' : 'rgba(255,213,79,0.12)'
-                const statusCol = isApproved ? 'var(--ac)' : isRejected ? 'var(--bad)' : '#ffd54f'
-                return (
-                  <tr key={r.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <td style={{ padding: '9px 6px', textTransform: 'capitalize', fontWeight: 600 }}>{r.type}</td>
-                    <td style={{ padding: '9px 6px', fontWeight: 700 }}>₹{f(r.amount)}</td>
-                    <td style={{ padding: '9px 6px', color: 'var(--mut)', fontSize: 11 }}>{r.upi_id || r.utr || '—'}</td>
-                    <td style={{ padding: '9px 6px', textAlign: 'right' }}>
-                      <span style={{ 
-                        display: 'inline-block',
-                        padding: '3px 8px', 
-                        borderRadius: 12, 
-                        fontSize: 11, 
-                        fontWeight: 700, 
-                        background: statusBg, 
-                        color: statusCol,
-                        textTransform: 'uppercase'
-                      }}>
-                        {r.status}
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })}
-              {!displayedReqs.length && (
-                <tr>
-                  <td colSpan="4" style={{ textAlign: 'center', padding: '16px 0', color: 'var(--mut)' }}>No requests found</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
+        {displayedReqs.map(request => (
+          <div className="wallet-request-row" key={request.id}>
+            <div>
+              <b>{request.type === 'deposit' ? 'Deposit request' : 'Withdrawal request'} · ₹{f(request.amount)}</b>
+              <small>{new Date(request.created_at).toLocaleString()} · {request.upi_id || request.utr || 'No reference'}</small>
+            </div>
+            <span className="wallet-request-status">{request.status || 'pending'}</span>
+          </div>
+        ))}
+        {!displayedReqs.length && <div className="activity-empty">No deposit or withdrawal requests yet</div>}
         {reqTotalPages > 1 && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--ln)' }}>
-            <button 
-              disabled={reqPage === 0} 
-              onClick={() => setReqPage(p => p - 1)}
-              style={{ padding: '4px 10px', fontSize: 12, borderRadius: 6 }}
-            >
-              ← Previous
-            </button>
-            <span style={{ fontSize: 12, color: 'var(--mut)' }}>
-              Page {reqPage + 1} of {reqTotalPages}
-            </span>
-            <button 
-              disabled={reqPage >= reqTotalPages - 1} 
-              onClick={() => setReqPage(p => p + 1)}
-              style={{ padding: '4px 10px', fontSize: 12, borderRadius: 6 }}
-            >
-              Next →
-            </button>
+          <div className="activity-pagination">
+            <button disabled={reqPage === 0} onClick={() => setReqPage(p => p - 1)}>Previous</button>
+            <span>Page {reqPage + 1} of {reqTotalPages}</span>
+            <button disabled={reqPage >= reqTotalPages - 1} onClick={() => setReqPage(p => p + 1)}>Next</button>
           </div>
         )}
       </div>
@@ -338,7 +353,7 @@ export function Wallet({ u, me, initialTab = 'd' }) {
           </div>
         )}
       </div>
-    </>
+    </div>
   )
 }
 
@@ -447,19 +462,19 @@ export function Activity({ u, initialTab = 'bets' }) {
 export function AccountHub({ u, isAdmin, onWallet, onActivity, onNavigate, onSupport, onLogout }) {
   const comingSoon = () => toast('Coming soon')
   const accountOptions = [
-    { icon: '▤', label: 'Notifications', action: comingSoon },
-    { icon: '🎁', label: 'Gifts', action: comingSoon },
-    { icon: '▣', label: 'Top-up coupons', action: comingSoon },
-    { icon: '▥', label: 'Game statistics', action: comingSoon },
-    { icon: '◎', label: 'Language', detail: 'English', action: comingSoon }
+    { icon: 'notifications', label: 'Notifications', action: comingSoon },
+    { icon: 'gift', label: 'Gifts', action: comingSoon },
+    { icon: 'coupon', label: 'Top-up coupons', action: comingSoon },
+    { icon: 'chart', label: 'Game statistics', action: comingSoon },
+    { icon: 'language', label: 'Language', detail: 'English', action: comingSoon }
   ]
   const services = [
-    { icon: '⚙', label: 'Settings', action: () => onNavigate('settings') },
-    { icon: '✉', label: 'Feedback', action: comingSoon },
-    { icon: '⚑', label: 'Announcements', action: comingSoon },
-    { icon: '◉', label: 'Customer service', action: onSupport },
-    { icon: '▤', label: 'Beginner guide', action: comingSoon },
-    { icon: '◇', label: 'About Royal Spin', action: comingSoon }
+    { icon: 'settings', label: 'Settings', action: () => onNavigate('settings') },
+    { icon: 'feedback', label: 'Feedback', action: comingSoon },
+    { icon: 'announcement', label: 'Announcements', action: comingSoon },
+    { icon: 'support', label: 'Customer service', action: onSupport },
+    { icon: 'guide', label: 'Beginner guide', action: comingSoon },
+    { icon: 'about', label: 'About Royal Spin', action: comingSoon }
   ]
 
   return (
@@ -479,30 +494,30 @@ export function AccountHub({ u, isAdmin, onWallet, onActivity, onNavigate, onSup
 
       <div className="account-shortcuts">
         {[
-          ['▣', 'Wallet', () => onWallet('d')],
-          ['＋', 'Deposit', () => onWallet('d')],
-          ['↗', 'Withdraw', () => onWallet('w')],
-          ['◆', 'VIP', comingSoon]
+          ['wallet', 'Wallet', () => onWallet('d')],
+          ['deposit', 'Deposit', () => onWallet('d')],
+          ['withdraw', 'Withdraw', () => onWallet('w')],
+          ['vip', 'VIP', comingSoon]
         ].map(([icon, label, action]) => (
-          <button key={label} onClick={action}><span>{icon}</span>{label}</button>
+          <button key={label} onClick={action}><span><HubIcon name={icon} /></span>{label}</button>
         ))}
       </div>
 
       <div className="account-history-grid">
         {[
-          ['▤', 'Game history', () => onActivity('bets')],
-          ['⇄', 'Transactions', () => onActivity('transactions')],
-          ['↓', 'Deposit history', () => onActivity('deposit')],
-          ['↑', 'Withdraw history', () => onActivity('withdraw')]
+          ['history', 'Game history', () => onActivity('bets')],
+          ['transactions', 'Transactions', () => onActivity('transactions')],
+          ['deposit', 'Deposit history', () => onActivity('deposit')],
+          ['withdraw', 'Withdraw history', () => onActivity('withdraw')]
         ].map(([icon, label, action]) => (
-          <button key={label} onClick={action}><span>{icon}</span><b>{label}</b><small>View details</small></button>
+          <button key={label} onClick={action}><span><HubIcon name={icon} /></span><b>{label}</b><small>View details</small></button>
         ))}
       </div>
 
       <section className="account-section">
         {accountOptions.map(option => (
           <button className="account-list-row" key={option.label} onClick={option.action}>
-            <span className="account-option-icon">{option.icon}</span><b>{option.label}</b>
+            <span className="account-option-icon"><HubIcon name={option.icon} /></span><b>{option.label}</b>
             {option.detail && <small>{option.detail}</small>}<span className="account-chevron">›</span>
           </button>
         ))}
@@ -511,15 +526,15 @@ export function AccountHub({ u, isAdmin, onWallet, onActivity, onNavigate, onSup
       <section className="account-section account-service">
         <h3>Service center</h3>
         <div>{services.map(service => (
-          <button key={service.label} onClick={service.action}><span>{service.icon}</span><small>{service.label}</small></button>
+          <button key={service.label} onClick={service.action}><span><HubIcon name={service.icon} /></span><small>{service.label}</small></button>
         ))}</div>
       </section>
 
       <section className="account-systems">
-        <button onClick={() => onNavigate('wager')}><span>◷</span><b>Wager requirement</b><strong>₹{f(u.bonus_needed || 0)}</strong></button>
-        <button onClick={() => onNavigate('bonus')}><span>✦</span><b>Bonus balance</b><strong>₹{f(u.bonus_balance || 0)}</strong></button>
-        <button onClick={() => onNavigate('vault')}><span>▣</span><b>Vault</b><strong>₹{f(u.vault_balance || 0)}</strong></button>
-        <button onClick={() => onNavigate('profile')}><span>♙</span><b>Profile & stats</b><strong>›</strong></button>
+        <button onClick={() => onNavigate('wager')}><span><HubIcon name="wager" /></span><b>Wager requirement</b><strong>₹{f(u.bonus_needed || 0)}</strong></button>
+        <button onClick={() => onNavigate('bonus')}><span><HubIcon name="bonus" /></span><b>Bonus balance</b><strong>₹{f(u.bonus_balance || 0)}</strong></button>
+        <button onClick={() => onNavigate('vault')}><span><HubIcon name="vault" /></span><b>Vault</b><strong>₹{f(u.vault_balance || 0)}</strong></button>
+        <button onClick={() => onNavigate('profile')}><span><HubIcon name="profile" /></span><b>Profile & stats</b><strong>›</strong></button>
       </section>
 
       {isAdmin && <button className="account-admin" onClick={() => onNavigate('admin')}>Open Admin Panel</button>}
@@ -536,15 +551,15 @@ export function PromotionHub({ u }) {
       <Referral u={u} />
       <section className="promotion-grid">
         {[
-          ['♧', 'Invite bonus'],
-          ['▣', 'Betting rewards'],
-          ['🏆', 'Jackpot'],
-          ['🎁', 'First gift'],
-          ['◉', 'Invite wheel'],
-          ['▤', 'Attendance bonus'],
-          ['✦', 'Special events']
+          ['gift', 'Invite bonus'],
+          ['activity', 'Betting rewards'],
+          ['vip', 'Jackpot'],
+          ['gift', 'First gift'],
+          ['promotion', 'Invite wheel'],
+          ['bonus', 'Attendance bonus'],
+          ['promotion', 'Special events']
         ].map(([icon, title]) => (
-          <button key={title} onClick={comingSoon}><span>{icon}</span><b>{title}</b><small>Coming soon</small></button>
+          <button key={title} onClick={comingSoon}><span><HubIcon name={icon} /></span><b>{title}</b><small>Coming soon</small></button>
         ))}
       </section>
     </div>

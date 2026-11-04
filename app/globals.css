@@ -40,11 +40,15 @@ body:has(.player-shell){background:#969ba7}
 .player-balance b{font-size:13px}
 .player-account-button{width:36px;height:36px;padding:0;border-radius:50%;background:#fff0f0;color:#ed555d;font-size:21px}
 main.player-main{width:100%;max-width:520px;min-height:calc(100vh - 60px);margin:0 auto;padding:74px 12px 20px}
-.player-nav{position:fixed;left:50%;bottom:0;z-index:120;display:grid;grid-template-columns:repeat(4,1fr);width:min(100%,520px);height:calc(64px + env(safe-area-inset-bottom,0px));padding:5px 8px env(safe-area-inset-bottom,0px);transform:translateX(-50%);border-top:1px solid #e6e8ed;background:#fff;box-shadow:0 -4px 16px #2222}
+.player-nav{position:fixed;left:50%;bottom:0;z-index:120;display:grid;grid-template-columns:repeat(4,1fr);width:min(100%,520px);height:calc(76px + env(safe-area-inset-bottom,0px));padding:7px 8px env(safe-area-inset-bottom,0px);transform:translateX(-50%);border-top:1px solid #e6e8ed;background:#fff;box-shadow:0 -4px 16px #2222}
 .player-nav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:3px;background:transparent;color:#9aa3b1}
 .player-nav button.active{color:#f1535b}
-.player-nav button>span{font-size:20px;line-height:1.1}
-.player-nav button>small{font-size:10px}
+.player-nav button>span{font-size:27px;line-height:1.1}
+.player-nav button>span>svg{width:28px;height:28px}
+.player-nav button>small{font-size:12px;font-weight:600}
+.player-shell input,.player-shell select,.player-shell textarea{font-size:16px}
+.player-shell .card{padding:17px;border-radius:16px}
+.player-main{padding-bottom:28px!important}
 .player-shell .card{background:#fff;color:#202b3c;box-shadow:0 2px 10px #25334b0b}
 .player-shell .card .small{color:#7c8798}
 .home-welcome{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px;border-radius:16px;background:linear-gradient(115deg,#ff595f,#ff9789);color:#fff;margin-bottom:14px}
@@ -69,34 +73,39 @@ main.player-main{width:100%;max-width:520px;min-height:calc(100vh - 60px);margin
 .account-balance strong{grid-row:2;font-size:20px}
 .account-balance button{grid-column:2;grid-row:1 / span 2;padding:8px 12px;border-radius:22px;background:#ff5b63;color:#fff;font-size:12px}
 .account-shortcuts{display:grid;grid-template-columns:repeat(4,1fr);padding:12px 4px;border-radius:14px;background:#fff;box-shadow:0 2px 10px #25334b0b}
-.account-shortcuts button{display:flex;flex-direction:column;align-items:center;gap:5px;padding:5px 2px;background:transparent;color:#303b50;font-size:11px}
-.account-shortcuts button span{width:36px;height:36px;display:grid;place-items:center;border-radius:11px;background:#fff0f0;color:#f25a61;font-size:20px}
+.account-shortcuts button{display:flex;flex-direction:column;align-items:center;gap:7px;padding:7px 2px;background:transparent;color:#303b50;font-size:13px;font-weight:600}
+.account-shortcuts button span{width:44px;height:44px;display:grid;place-items:center;border-radius:13px;background:#fff0f0;color:#f25a61;font-size:25px}
+.account-shortcuts button span svg{width:27px;height:27px}
 .account-history-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .account-history-grid button{display:grid;grid-template-columns:36px 1fr;grid-template-rows:auto auto;align-items:center;gap:0 8px;padding:11px;border-radius:10px;background:#fff;color:#2d394e;text-align:left;box-shadow:0 2px 10px #25334b0b}
 .account-history-grid button span{grid-row:1 / span 2;width:34px;height:34px;display:grid;place-items:center;border-radius:9px;background:#edf5ff;color:#559bfa;font-size:19px}
-.account-history-grid button b{font-size:12px}
-.account-history-grid button small{color:#8892a2;font-size:10px}
+.account-history-grid button span svg{width:23px;height:23px}
+.account-history-grid button b{font-size:14px}
+.account-history-grid button small{color:#8892a2;font-size:11px}
 .account-section{padding:6px 12px;border-radius:13px;background:#fff;box-shadow:0 2px 10px #25334b0b}
-.account-list-row{width:100%;display:flex;align-items:center;gap:10px;padding:12px 2px;border-bottom:1px solid #eff0f4;border-radius:0;background:transparent;color:#303b50;text-align:left;font-size:12px}
+.account-list-row{width:100%;display:flex;align-items:center;gap:12px;padding:14px 2px;border-bottom:1px solid #eff0f4;border-radius:0;background:transparent;color:#303b50;text-align:left;font-size:14px}
 .account-list-row:last-child{border-bottom:0}
-.account-option-icon{width:29px;height:29px;display:grid;place-items:center;border-radius:8px;background:#fff0f0;color:#f25a61;font-size:17px}
+.account-option-icon{width:36px;height:36px;display:grid;place-items:center;border-radius:10px;background:#fff0f0;color:#f25a61;font-size:21px}
+.account-option-icon svg{width:23px;height:23px}
 .account-list-row b{flex:1;font-weight:600}
-.account-list-row small{color:#7c8798}
+.account-list-row small{color:#7c8798;font-size:12px}
 .account-chevron{color:#9aa3b1;font-size:21px}
 .account-service h3{margin:8px 2px 10px;font-size:13px}
 .account-service>div{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 6px;padding:4px 0 8px}
 .account-service button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 2px;background:transparent;color:#68758a}
-.account-service button span{width:34px;height:34px;display:grid;place-items:center;border-radius:10px;background:#fff0f0;color:#f25a61;font-size:18px}
-.account-service button small{font-size:10px;text-align:center}
+.account-service button span{width:42px;height:42px;display:grid;place-items:center;border-radius:12px;background:#fff0f0;color:#f25a61;font-size:22px}
+.account-service button span svg{width:25px;height:25px}
+.account-service button small{font-size:12px;text-align:center}
 .account-systems{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .account-systems button{display:grid;grid-template-columns:26px 1fr auto;align-items:center;gap:4px 6px;padding:11px 9px;border-radius:10px;background:#fff;color:#354056;text-align:left}
 .account-systems button span{color:#f15a61;font-size:17px}
+.account-systems button span svg{width:22px;height:22px;display:block}
 .account-systems button b{font-size:11px}
 .account-systems button strong{grid-column:2 / span 2;color:#ee565d;font-size:12px}
 .account-admin,.account-logout{width:100%;padding:11px;border:1px solid #ff7076;border-radius:24px;background:transparent;color:#ef535b;font-weight:700}
 .account-logout{margin:0 0 8px}
 .activity-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:4px;border-radius:11px;background:#fff}
-.activity-tabs button{padding:8px 3px;background:transparent;color:#738095;font-size:10px}
+.activity-tabs button{padding:10px 4px;background:transparent;color:#738095;font-size:12px}
 .activity-tabs button.selected{border-radius:8px;background:#fff0f0;color:#ee555d;font-weight:700}
 .activity-list{overflow:hidden;border-radius:13px;background:#fff}
 .activity-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px;border-bottom:1px solid #eff0f4}
@@ -115,8 +124,56 @@ main.player-main{width:100%;max-width:520px;min-height:calc(100vh - 60px);margin
 .promotion-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .promotion-grid button{display:flex;flex-direction:column;align-items:center;gap:5px;min-height:92px;padding:12px 5px;border-radius:12px;background:#fff;color:#313c50;box-shadow:0 2px 10px #25334b0b}
 .promotion-grid button span{width:38px;height:38px;display:grid;place-items:center;border-radius:12px;background:#fff0f0;color:#f15b62;font-size:21px}
-.promotion-grid button b{font-size:10px}
-.promotion-grid button small{color:#8a94a5;font-size:9px}
+.promotion-grid button span svg{width:25px;height:25px}
+.promotion-grid button b{font-size:12px}
+.promotion-grid button small{color:#8a94a5;font-size:11px}
+.player-main .small{font-size:13px}
+.player-main label{font-size:14px}
+.activity-row b{font-size:14px}
+.activity-row small{font-size:12px}
+.account-history-grid button small{font-size:12px}
+.account-service button small{font-size:12px}
+.promotion-grid button b{font-size:13px}
+.promotion-grid button small{font-size:12px}
+.wallet-balance-card{padding:18px;border-radius:16px;background:linear-gradient(115deg,#ff595f,#ff9789);color:#fff}
+.wallet-balance-card small{display:block;font-size:13px;opacity:.9}
+.wallet-balance-card strong{display:block;margin:4px 0 15px;font-size:28px}
+.wallet-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.wallet-tabs button{padding:11px 8px;border:1px solid #ffffff99;border-radius:10px;background:#ffffff20;color:#fff;font-size:15px;font-weight:700}
+.wallet-tabs button.selected{background:#fff;color:#ef535b}
+.wallet-section{padding:18px;border-radius:15px;background:#fff;box-shadow:0 2px 10px #25334b0b}
+.wallet-section h2{margin:0 0 5px;font-size:19px}
+.wallet-section>p{margin:3px 0 14px;color:#7c8798;font-size:13px}
+.wallet-channel-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0}
+.wallet-channel{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid #e7e9ef;border-radius:12px;background:#fff;color:#344056;text-align:left}
+.wallet-channel.selected{border-color:#ff7076;background:#fff5f5}
+.wallet-channel-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:11px;background:#fff0f0;color:#ef535b;font-size:22px}
+.wallet-channel-icon svg{width:26px;height:26px}
+.wallet-channel b,.wallet-channel small{display:block}
+.wallet-channel b{font-size:14px}
+.wallet-channel small{margin-top:2px;color:#8a94a5;font-size:11px}
+.wallet-amount-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:9px 0 12px}
+.wallet-amount-grid button{padding:10px 4px;border:1px solid #e6e8ed;background:#fff;color:#49566d;font-size:14px;font-weight:700}
+.wallet-amount-grid button.selected{border-color:#ff6269;background:#fff1f1;color:#eb535b}
+.wallet-qr-box{margin:14px 0;padding:16px;border:1px solid #eceef2;border-radius:13px;background:#fafbfc;text-align:center}
+.wallet-qr-box .qr{margin:8px 0;background:#fff}
+.wallet-upi{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;color:#46536a;font-size:14px;font-weight:700}
+.wallet-upi button{padding:6px 10px;background:#fff0f0;color:#e95058;font-size:12px}
+.wallet-instructions{margin:12px 0 0;padding:12px;border-radius:11px;background:#fff8ee;color:#766348;font-size:12px;line-height:1.6}
+.wallet-instructions b{display:block;margin-bottom:4px;color:#53452f;font-size:13px}
+.wallet-field-label{display:block;margin:14px 0 6px;color:#46536a;font-size:13px;font-weight:700}
+.wallet-section input{height:48px;border-color:#e4e6ed;background:#fff;color:#283348}
+.wallet-submit{width:100%;min-height:50px;margin-top:12px;border-radius:26px;background:linear-gradient(100deg,#ff585f,#ff9285);color:#fff;font-size:16px;font-weight:800}
+.wallet-submit:disabled{background:#d7d9e2;color:#7b8494}
+.wallet-lock{margin:10px 0;padding:12px;border:1px solid #ffd9a8;border-radius:11px;background:#fff9ef;color:#856122;font-size:13px;font-weight:700}
+.wallet-history-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.wallet-history-heading b{font-size:16px}
+.wallet-history-heading button{padding:7px 10px;background:#fff0f0;color:#e95058;font-size:12px}
+.wallet-request-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 0;border-bottom:1px solid #eff0f4}
+.wallet-request-row:last-child{border-bottom:0}
+.wallet-request-row b{display:block;font-size:14px}
+.wallet-request-row small{display:block;margin-top:3px;color:#8390a2;font-size:11px}
+.wallet-request-status{flex:none;padding:5px 9px;border-radius:20px;background:#fff0f0;color:#e95058;font-size:11px;font-weight:700;text-transform:capitalize}
 .player-shell .support-widget{right:max(14px,calc((100vw - 520px)/2 + 14px));bottom:calc(78px + env(safe-area-inset-bottom,0px))}
 .row{display:flex;gap:8px;align-items:center}.row>*{flex:1}
 .tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
