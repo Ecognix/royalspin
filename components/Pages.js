@@ -275,7 +275,7 @@ export function Wallet({ u, me, initialTab = 'd' }) {
         </div>
       )}
 
-      <div className="wallet-section">
+      <div className="wallet-section wallet-history-section">
         <div className="wallet-history-heading">
           <b>Deposit & withdrawal history</b>
           <button onClick={fetchData}>Refresh</button>
@@ -1025,18 +1025,23 @@ export function PromotionHub({ u, onNavigate, onSupport }) {
   )
 }
 
-export function Support({ u }) {
+export function Support({ u, onBack }) {
+  const [conversations, setConversations] = useState([])
+  const [previews, setPreviews] = useState({})
+  const [selectedConversationId, setSelectedConversationId] = useState(null)
+  const [showingThread, setShowingThread] = useState(false)
   const [messages, setMessages] = useState([])
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [creating, setCreating] = useState(false)
+  const [loadingConversations, setLoadingConversations] = useState(true)
+  const [loadingMessages, setLoadingMessages] = useState(false)
   const [chatError, setChatError] = useState('')
-  const [isOpen, setIsOpen] = useState(false)
   const messagesEndRef = useRef(null)
 
   function supportErrorMessage(error) {
-    if (error?.code === '42P01' || error?.code === 'PGRST205') {
-      return 'Support chat is not set up yet. Please ask the site administrator to apply support_messages_migration.sql.'
+    if (['42P01', '42703', 'PGRST204', 'PGRST205'].includes(error?.code)) {
+      return 'Support chat needs a database update. Please ask the site administrator to apply support_messages_migration.sql.'
     }
     if (error?.code === '42501' || error?.code === 'PGRST301') {
       return 'Support chat database permissions are not configured. Please contact the site administrator.'
@@ -1044,68 +1049,139 @@ export function Support({ u }) {
     return error?.message || 'An unexpected database error occurred.'
   }
 
-  const loadMessages = async () => {
+  const loadConversations = async (showLoading = false) => {
     if (!u?.id) {
-      setLoading(false)
       return
     }
-    const { data, error } = await supabase
-      .from('support_messages')
-      .select('id, sender_role, message, created_at')
-      .eq('user_id', u.id)
-      .order('created_at', { ascending: true })
-    if (error) {
-      console.error('Support messages load error:', error)
+    if (showLoading) setLoadingConversations(true)
+    try {
+      const { data, error } = await supabase
+        .from('support_conversations')
+        .select('id, created_at, updated_at')
+        .eq('user_id', u.id)
+        .order('updated_at', { ascending: false })
+        .limit(100)
+      if (error) throw error
+
+      const rows = data || []
+      setConversations(rows)
+      setSelectedConversationId(current => (
+        rows.some(conversation => conversation.id === current) ? current : rows[0]?.id || null
+      ))
+      if (rows.length) {
+        const { data: messageRows, error: messageError } = await supabase
+          .from('support_messages')
+          .select('conversation_id, sender_role, message, created_at')
+          .in('conversation_id', rows.map(conversation => conversation.id))
+          .order('created_at', { ascending: false })
+          .limit(1000)
+        if (messageError) throw messageError
+        const latestByConversation = {}
+        ;(messageRows || []).forEach(message => {
+          if (!latestByConversation[message.conversation_id]) latestByConversation[message.conversation_id] = message
+        })
+        setPreviews(latestByConversation)
+      } else {
+        setPreviews({})
+      }
+      setChatError('')
+    } catch (error) {
+      console.error('Support conversations load error:', error)
       setChatError(supportErrorMessage(error))
-      setLoading(false)
-      return
+    } finally {
+      if (showLoading) setLoadingConversations(false)
     }
-    setMessages(data || [])
-    setChatError('')
-    setLoading(false)
   }
 
   useEffect(() => {
-    setLoading(true)
-    loadMessages()
-    const timer = setInterval(loadMessages, 10000)
-    const openChat = () => setIsOpen(true)
-    window.addEventListener('rs-open-support', openChat)
+    loadConversations(true)
+    const timer = setInterval(() => loadConversations(), 10000)
     return () => {
       clearInterval(timer)
-      window.removeEventListener('rs-open-support', openChat)
     }
   }, [u?.id])
 
+  const loadMessages = async (conversationId, showLoading = false) => {
+    if (!conversationId) {
+      setMessages([])
+      return
+    }
+    if (showLoading) setLoadingMessages(true)
+    try {
+      const { data, error } = await supabase
+        .from('support_messages')
+        .select('id, sender_role, message, created_at')
+        .eq('user_id', u.id)
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true })
+      if (error) throw error
+      setMessages(data || [])
+      setChatError('')
+    } catch (error) {
+      console.error('Support messages load error:', error)
+      setChatError(supportErrorMessage(error))
+    } finally {
+      if (showLoading) setLoadingMessages(false)
+    }
+  }
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, isOpen])
+    if (!selectedConversationId) {
+      setMessages([])
+      return
+    }
+    loadMessages(selectedConversationId, true)
+    const timer = setInterval(() => loadMessages(selectedConversationId), 10000)
+    return () => clearInterval(timer)
+  }, [selectedConversationId, u?.id])
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }, [messages])
+
+  async function createConversation() {
+    if (!u?.id || creating) return
+    setCreating(true)
+    try {
+      const { data, error } = await supabase
+        .from('support_conversations')
+        .insert({ user_id: u.id })
+        .select('id, created_at, updated_at')
+        .single()
+      if (error) throw error
+      setConversations(current => [data, ...current.filter(item => item.id !== data.id)])
+      setSelectedConversationId(data.id)
+      setShowingThread(true)
+      setMessages([])
+      setDraft('')
+      setChatError('')
+    } catch (error) {
+      console.error('Support conversation creation error:', error)
+      setChatError(supportErrorMessage(error))
+    } finally {
+      setCreating(false)
+    }
+  }
 
   async function send() {
     const message = draft.trim()
-    if (!message || sending || loading || chatError || !u?.id) return
+    if (!message || sending || loadingMessages || chatError || !u?.id || !selectedConversationId) return
     setSending(true)
     try {
       const { error } = await supabase.from('support_messages').insert({
+        conversation_id: selectedConversationId,
         user_id: u.id,
         sender_role: 'user',
         message
       })
       if (error) throw error
 
-      const hasAutoReply = messages.some(item => item.sender_role === 'system')
-      if (!hasAutoReply) {
-        const { error: autoReplyError } = await supabase.from('support_messages').insert({
-          user_id: u.id,
-          sender_role: 'system',
-          message: 'Please wait while our support team reviews your message and responds.'
-        })
-        if (autoReplyError) throw autoReplyError
-      }
-
       setDraft('')
       setChatError('')
-      await loadMessages()
+      await Promise.all([
+        loadMessages(selectedConversationId),
+        loadConversations()
+      ])
     } catch (error) {
       console.error('Support message send error:', error)
       setChatError(supportErrorMessage(error))
@@ -1115,66 +1191,91 @@ export function Support({ u }) {
   }
 
   return (
-    <div className="support-widget">
-      {isOpen && (
-        <section className="support-panel" aria-label="Customer support chat">
-          <div className="support-header">
-            <div className="support-avatar">♠</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <b>Royal Spin Support</b>
-              <div className="small" style={{ color: '#d3e6dc' }}>We’re here to help</div>
+    <div className="support-page">
+      <div className="support-page-heading">
+        <button type="button" onClick={onBack}>‹ Back</button>
+        <div><h2>Customer support</h2><p>Start a new conversation or continue an earlier chat.</p></div>
+      </div>
+      <div className={`support-layout ${selectedConversationId ? 'has-chat' : ''} ${showingThread ? 'mobile-thread-open' : ''}`}>
+        <aside className="support-history">
+          <div className="support-history-heading">
+            <b>Chat history</b>
+            <button type="button" onClick={createConversation} disabled={creating}>{creating ? 'Starting…' : '+ New chat'}</button>
+          </div>
+          {loadingConversations && !conversations.length && <div className="support-state">Loading your chats…</div>}
+          {!loadingConversations && !conversations.length && !chatError && <div className="support-state">No previous chats yet.</div>}
+          {conversations.map(conversation => {
+            const preview = previews[conversation.id]
+            return (
+              <button
+                type="button"
+                key={conversation.id}
+                className={`support-conversation ${selectedConversationId === conversation.id ? 'selected' : ''}`}
+                onClick={() => { setSelectedConversationId(conversation.id); setShowingThread(true) }}
+              >
+                <b>Support chat</b>
+                <span>{preview?.message || 'New conversation'}</span>
+                <time>{new Date(preview?.created_at || conversation.created_at).toLocaleString()}</time>
+              </button>
+            )
+          })}
+        </aside>
+        <section className="support-thread" aria-label="Customer support chat">
+          {selectedConversationId ? (
+            <>
+              <div className="support-thread-heading">
+                <button type="button" className="support-history-back" onClick={() => setShowingThread(false)} aria-label="Back to chat history">‹</button>
+                <div><b>Royal Spin Support</b><small>Our team will reply in this conversation.</small></div>
+              </div>
+              <div className="support-messages" aria-live="polite">
+                {!messages.length && !loadingMessages && !chatError && (
+                  <div className="support-welcome">Hi! Send us a message and our team will get back to you here.</div>
+                )}
+                {loadingMessages && !messages.length && <div className="support-state">Loading conversation…</div>}
+                {messages.map(item => {
+                  const fromPlayer = item.sender_role === 'user'
+                  return (
+                    <div key={item.id} className={'support-message ' + (fromPlayer ? 'support-message-player' : 'support-message-team')}>
+                      <div>{item.message}</div>
+                      <time>{new Date(item.created_at).toLocaleString()}</time>
+                    </div>
+                  )
+                })}
+                {chatError && <div className="support-error" role="alert">{chatError}</div>}
+                <div ref={messagesEndRef} />
+              </div>
+              <form className="support-compose" onSubmit={event => { event.preventDefault(); send() }}>
+                <textarea
+                  value={draft}
+                  onChange={event => setDraft(event.target.value)}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                      event.preventDefault()
+                      send()
+                    }
+                  }}
+                  placeholder="Type a message…"
+                  rows={1}
+                  maxLength={2000}
+                  disabled={loadingMessages || !!chatError}
+                  aria-label="Type a support message"
+                />
+                <button type="submit" className="support-send" disabled={sending || loadingMessages || !!chatError || !draft.trim()} aria-label="Send message">
+                  {sending ? '…' : '➤'}
+                </button>
+              </form>
+            </>
+          ) : (
+            <div className="support-empty">
+              <div className="support-avatar">♠</div>
+              <b>How can we help?</b>
+              <p>Select a chat from your history or start a new one.</p>
+              <button type="button" onClick={createConversation} disabled={creating}>{creating ? 'Starting…' : 'Start a new chat'}</button>
+              {chatError && <div className="support-error" role="alert">{chatError}</div>}
             </div>
-            <button type="button" className="support-close" onClick={() => setIsOpen(false)} aria-label="Close support chat">×</button>
-          </div>
-          <div className="support-messages" aria-live="polite">
-            {!messages.length && !loading && !chatError && (
-              <div className="support-welcome">Hi! Send us a message and our team will get back to you here.</div>
-            )}
-            {loading && !messages.length && <div className="support-state">Loading conversation…</div>}
-            {messages.map(item => {
-              const fromPlayer = item.sender_role === 'user'
-              return (
-                <div key={item.id} className={'support-message ' + (fromPlayer ? 'support-message-player' : 'support-message-team')}>
-                  <div>{item.message}</div>
-                  <time>{new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
-                </div>
-              )
-            })}
-            {chatError && <div className="support-error" role="alert">{chatError}</div>}
-            <div ref={messagesEndRef} />
-          </div>
-          <form className="support-compose" onSubmit={(event) => { event.preventDefault(); send() }}>
-            <textarea
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault()
-                  send()
-                }
-              }}
-              placeholder="Type a message…"
-              rows={1}
-              maxLength={2000}
-              disabled={loading || !!chatError}
-              aria-label="Type a support message"
-            />
-            <button type="submit" className="support-send" disabled={sending || loading || !!chatError || !draft.trim()} aria-label="Send message">
-              {sending ? '…' : '➤'}
-            </button>
-          </form>
+          )}
         </section>
-      )}
-      <button
-        type="button"
-        className="support-launcher"
-        onClick={() => setIsOpen(open => !open)}
-        aria-expanded={isOpen}
-        aria-label={isOpen ? 'Close support chat' : 'Open support chat'}
-      >
-        {isOpen ? '×' : '✉'}
-        {!isOpen && <span>Support</span>}
-      </button>
+      </div>
     </div>
   )
 }

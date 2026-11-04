@@ -291,6 +291,7 @@ export function Notifications() {
 
 function WinGoResultCard({ notif, onDismiss }) {
   const isWin = notif.type === 'win'
+  const isBalancedLoss = !isWin && notif.balancedSizeBets
   const number = notif.resultNumber
   const resultColor = number === 0
     ? 'Red + Violet'
@@ -304,7 +305,7 @@ function WinGoResultCard({ notif, onDismiss }) {
       <section className={`win-go-result-card ${isWin ? 'win' : 'loss'}`} role="dialog" aria-modal="true" aria-label="WIN GO result">
         <button type="button" className="win-go-result-close" onClick={onDismiss} aria-label="Close result">×</button>
         <div className="win-go-result-medallion" aria-hidden="true">✦</div>
-        <h2>{isWin ? 'Congratulations' : 'Sorry'}</h2>
+        <h2>{isWin ? 'Congratulations' : isBalancedLoss ? 'Balanced bets' : 'Sorry'}</h2>
         {notif.balancedSizeBets && <span className="win-go-balanced-tag">Equal Big &amp; Small bets</span>}
         <div className="win-go-result-tags">
           <span>Lottery result</span>
@@ -318,7 +319,7 @@ function WinGoResultCard({ notif, onDismiss }) {
           <small>{notif.periodTitle} · Period #{notif.periodNumber}</small>
           <small>Bet ₹{f(notif.betAmount)} · Return ₹{f(notif.returnAmount)}</small>
         </div>
-        <p className="win-go-result-autoclose"><span aria-hidden="true">✓</span> {Math.ceil((notif.autoClose || 5000) / 1000)} seconds auto close</p>
+        <p className="win-go-result-autoclose"><span aria-hidden="true">×</span> Close when you&apos;re ready</p>
       </section>
     </div>
   )
@@ -336,7 +337,7 @@ function NotificationCard({ notif, onDismiss }) {
 
   useEffect(() => {
 
-    if (autoClose) {
+    if (autoClose && !(center && Number.isInteger(resultNumber))) {
 
       const startTime = Date.now()
 
@@ -364,7 +365,7 @@ function NotificationCard({ notif, onDismiss }) {
 
     }
 
-  }, [autoClose, onDismiss])
+  }, [autoClose, center, resultNumber, onDismiss])
 
   
 
@@ -965,7 +966,7 @@ function Main() {
   }
 
   const openSupport = () => {
-    window.dispatchEvent(new CustomEvent('rs-open-support'))
+    go('support')
   }
 
   const logout = () => {
@@ -1123,6 +1124,8 @@ function Main() {
 
         {view === 'promotion' && <PromotionHub u={u} onNavigate={go} onSupport={openSupport} />}
 
+        {view === 'support' && <Support u={u} onBack={() => go('home')} />}
+
         {view === 'account' && (
           <AccountHub
             u={u}
@@ -1138,7 +1141,11 @@ function Main() {
 
       </main>
 
-      {!isAdmin && <Support u={u} />}
+      {!isAdmin && view !== 'support' && (
+        <button type="button" className="support-launcher" onClick={openSupport} aria-label="Open customer support">
+          <HubIcon name="support" />
+        </button>
+      )}
 
       {view !== 'admin' && (
         <nav className="player-nav" aria-label="Main navigation">
@@ -1154,7 +1161,7 @@ function Main() {
                 ? view === 'activity'
                 : destination === 'promotion'
                   ? ['promotion', 'referral'].includes(view)
-                  : ['account', 'wallet', 'vault', 'wager', 'bonus', 'profile', 'settings', 'history', 'gameStats', 'messages'].includes(view)
+                  : ['account', 'wallet', 'vault', 'wager', 'bonus', 'profile', 'settings', 'history', 'gameStats', 'messages', 'support'].includes(view)
             return (
               <button key={destination} className={active ? 'active' : ''} onClick={() => go(destination)}>
                 <span><HubIcon name={icon} /></span><small>{label}</small>

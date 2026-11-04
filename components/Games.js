@@ -35,27 +35,35 @@ export function Dice({ amt }) {
   const [over, setOver] = useState(true), [t, setT] = useState(50)
   const [res, setRes] = useState(null), [spin, setSpin] = useState(null), [busy, setBusy] = useState(false)
   const [lastResult, setLastResult] = useState(null)
+  const [position, setPosition] = useState(50)
 
   const ch = over ? 100 - t : t, mult = (100 * E('dice')) / ch
   function roll() {
     if (busy) return
     const placed = placeDemoBet('dice', amt); if (!placed) return
     const { amount: a, outcome } = placed
-    setBusy(true); setLastResult(null); setRes(null); setSpin(50)
-    const x = outcome.won
-      ? over ? t + (100 - t) / 2 : t / 2
-      : over ? t / 2 : t + (100 - t) / 2
+    const start = position
+    const offset = 0.01
+    const min = over
+      ? outcome.won ? t + offset : 0
+      : outcome.won ? 0 : t + offset
+    const max = over
+      ? outcome.won ? 100 : t - offset
+      : outcome.won ? t - offset : 100
+    const x = min + rnd() * (max - min)
+    setBusy(true); setLastResult(null); setRes(null); setSpin(start)
     const w = over ? x > t : x < t
     const startTime = performance.now()
     const duration = 1000
     const animate = (time) => {
       const progress = Math.min(1, (time - startTime) / duration)
       const eased = 1 - Math.pow(1 - progress, 3)
-      setSpin(50 + (x - 50) * eased)
+      setSpin(start + (x - start) * eased)
       if (progress < 1) {
         requestAnimationFrame(animate)
         return
       }
+      setPosition(x)
       setSpin(null)
       setRes({ x, w })
       const win = w ? a * mult : 0
@@ -94,10 +102,10 @@ export function Dice({ amt }) {
         </div>
       </div>
       <div className="chips">
-        <button className={over ? 'on' : ''} onClick={() => setOver(true)}>Roll over</button>
-        <button className={!over ? 'on' : ''} onClick={() => setOver(false)}>Roll under</button>
+        <button className={over ? 'on' : ''} onClick={() => setOver(true)} disabled={busy}>Roll over</button>
+        <button className={!over ? 'on' : ''} onClick={() => setOver(false)} disabled={busy}>Roll under</button>
       </div>
-      <input type="range" min="2" max="98" value={t} onChange={(e) => setT(+e.target.value)} />
+      <input type="range" min="2" max="98" value={t} onChange={(e) => setT(+e.target.value)} disabled={busy} />
       <p className="small">{over ? 'Over' : 'Under'} {t} · chance {ch}% · pays {f(mult)}×</p>
       <p className="small" style={{ color: 'var(--mut)', marginTop: 4 }}>Win multiplier is dynamically calculated based on your target roll. Choose your risk — pays from 1.01× up to 49.50× your bet.</p>
       <button className="p" style={{ ...FULL, opacity: busy ? 0.7 : 1 }} onClick={roll} disabled={busy}>

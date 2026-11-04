@@ -678,7 +678,7 @@ function Panel({ onOut }) {
   const [betsData, setBetsData] = useState([])
   const [reqsData, setReqsData] = useState([])
   const [supportMessages, setSupportMessages] = useState([])
-  const [supportUserId, setSupportUserId] = useState(null)
+  const [supportConversationId, setSupportConversationId] = useState(null)
   const [supportReply, setSupportReply] = useState('')
   const [sendingSupportReply, setSendingSupportReply] = useState(false)
   const [statBets, setStatBets] = useState([])
@@ -698,19 +698,19 @@ function Panel({ onOut }) {
       rows.push(...(data || []))
       if (!data || data.length < 1000) break
     }
-
-    const fetchSupportMessages = async () => {
-      const { data, error } = await supabase
-        .from('support_messages')
-        .select('id, user_id, sender_role, message, created_at, users:user_id(phone,name)')
-        .order('created_at', { ascending: true })
-      if (error) {
-        console.error('fetchSupportMessages error:', error)
-        return
-      }
-      setSupportMessages(data || [])
-    }
     setStatBets(rows)
+  }
+
+  const fetchSupportMessages = async () => {
+    const { data, error } = await supabase
+      .from('support_messages')
+      .select('id, user_id, conversation_id, sender_role, message, created_at, users:user_id(phone,name)')
+      .order('created_at', { ascending: true })
+    if (error) {
+      console.error('fetchSupportMessages error:', error)
+      return
+    }
+    setSupportMessages(data || [])
   }
 
   const fetchAdminData = async () => {
@@ -1135,28 +1135,6 @@ function Panel({ onOut }) {
         return
       }
 
-      const sendSupportReply = async () => {
-        const message = supportReply.trim()
-        if (!supportUserId || !message || sendingSupportReply) return
-        setSendingSupportReply(true)
-        try {
-          const { error } = await supabase.from('support_messages').insert({
-            user_id: supportUserId,
-            sender_role: 'admin',
-            message
-          })
-          if (error) {
-            console.error('Support reply error:', error)
-            toast('Could not send support reply')
-            return
-          }
-          setSupportReply('')
-          await fetchSupportMessages()
-        } finally {
-          setSendingSupportReply(false)
-        }
-      }
-
       setReqsData(prev => prev.map(request => request.id === requestId
         ? { ...request, upi_id: details, updated_at: new Date().toISOString() }
         : request
@@ -1168,18 +1146,42 @@ function Panel({ onOut }) {
     }
   }
 
+  const sendSupportReply = async () => {
+    const conversationMessage = supportMessages.find(item => item.conversation_id === supportConversationId)
+    const message = supportReply.trim()
+    if (!conversationMessage || !message || sendingSupportReply) return
+    setSendingSupportReply(true)
+    try {
+      const { error } = await supabase.from('support_messages').insert({
+        conversation_id: supportConversationId,
+        user_id: conversationMessage.user_id,
+        sender_role: 'admin',
+        message
+      })
+      if (error) throw error
+      setSupportReply('')
+      await fetchSupportMessages()
+    } catch (error) {
+      console.error('Support reply error:', error)
+      toast('Could not send support reply')
+    } finally {
+      setSendingSupportReply(false)
+    }
+  }
+
   const players = Object.keys(usersData)
   const supportConversations = Object.values(supportMessages.reduce((groups, message) => {
-    const current = groups[message.user_id] || { userId: message.user_id, messages: [] }
+    const id = message.conversation_id || `legacy:${message.user_id}`
+    const current = groups[id] || { id, userId: message.user_id, messages: [] }
     current.messages.push(message)
-    groups[message.user_id] = current
+    groups[id] = current
     return groups
   }, {})).sort((a, b) => {
     const aLast = a.messages[a.messages.length - 1]?.created_at || ''
     const bLast = b.messages[b.messages.length - 1]?.created_at || ''
     return aLast < bLast ? 1 : -1
   })
-  const selectedSupport = supportConversations.find(conversation => conversation.userId === supportUserId) || null
+  const selectedSupport = supportConversations.find(conversation => conversation.id === supportConversationId) || null
   const vol = statBets.reduce((s, x) => s + (Number(x.amount) || 0), 0)
   const profit = statBets.reduce((s, x) => s + (Number(x.amount) || 0) - (Number(x.win_amount) || 0), 0)
 
@@ -1668,12 +1670,12 @@ function Panel({ onOut }) {
                     const name = latest.users?.name
                     return (
                       <button
-                        key={conversation.userId}
-                        onClick={() => setSupportUserId(conversation.userId)}
-                        style={{ width: '100%', textAlign: 'left', padding: 10, marginBottom: 6, background: conversation.userId === supportUserId ? 'var(--ac)' : 'var(--c2)', color: conversation.userId === supportUserId ? '#000' : 'inherit', borderRadius: 8 }}
+                        key={conversation.id}
+                        onClick={() => setSupportConversationId(conversation.id)}
+                        style={{ width: '100%', textAlign: 'left', padding: 10, marginBottom: 6, background: conversation.id === supportConversationId ? 'var(--ac)' : 'var(--c2)', color: conversation.id === supportConversationId ? '#000' : 'inherit', borderRadius: 8 }}
                       >
                         <div style={{ fontWeight: 700 }}>{name ? `${name} · ${phone}` : phone}</div>
-                        <div className="small" style={{ color: conversation.userId === supportUserId ? '#000' : 'var(--mut)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{latest.message}</div>
+                        <div className="small" style={{ color: conversation.id === supportConversationId ? '#000' : 'var(--mut)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{latest.message}</div>
                       </button>
                     )
                   })}

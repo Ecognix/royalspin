@@ -40,6 +40,8 @@ Admin controls house edge, limits and on/off per game, equally for all players.
 ## Supabase setup
 Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local`
 (see `.env.example`) and create the database tables using `supabase-schema.sql`.
+Run `support_messages_migration.sql` in the Supabase SQL Editor for all databases to enable
+separate support conversations and retain any existing message history.
 
 ## Deposit and referral rules
 For an existing Supabase database, run `referrals_and_deposit_rules_migration.sql` in the
