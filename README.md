@@ -39,10 +39,13 @@ Admin controls house edge, limits and on/off per game, equally for all players.
 
 ## Supabase setup
 Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local`
-(see `.env.example`) and create the database tables using `supabase-schema.sql`.
+(see `.env.example`) and create the database tables using `supabase-schema.sql`. Configure
+`SUPABASE_SERVICE_ROLE_KEY` as a server-only environment variable for the secure support API;
+never expose it with a `NEXT_PUBLIC_` prefix.
 Run or rerun `support_messages_migration.sql` in the Supabase SQL Editor for all databases to
 enable separate support conversations, configure player/admin chat permissions, and retain any
-existing message history.
+existing message history. After deploying the secure session change, players and admins must sign
+out and back in once to establish their server-verified support session.
 For existing databases, run `withdrawal_platform_fee_migration.sql` before deploying the
 withdrawal fee; withdrawals are charged 5% (₹50 per ₹1,000), deducted from the requested
 amount so the player receives the remaining 95%.

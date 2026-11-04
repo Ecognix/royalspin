@@ -967,14 +967,21 @@ function Main() {
     go('support')
   }
 
-  const logout = () => {
-    setMe(null)
-    setM(null)
-    if (typeof window !== 'undefined') {
-      sessionStorage.removeItem('rs-view')
-      sessionStorage.removeItem('rs-game')
+  const logout = async () => {
+    try {
+      const response = await fetch('/api/auth/session?role=player', { method: 'DELETE' })
+      if (!response.ok) throw new Error(`Session logout failed (${response.status})`)
+    } catch (error) {
+      console.error('Player session logout error:', error)
+    } finally {
+      setMe(null)
+      setM(null)
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('rs-view')
+        sessionStorage.removeItem('rs-game')
+      }
+      setView('home')
     }
-    setView('home')
   }
 
   const Game = COMP[game]

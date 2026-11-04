@@ -562,6 +562,7 @@ canvas{width:100%;height:auto;aspect-ratio:16/9;background:radial-gradient(circl
 .admin-support-inbox-heading button{width:34px;height:34px;flex:none;padding:0;border-radius:9px;background:var(--c2);color:var(--tx);font-size:20px}
 .admin-support-conversation-list{max-height:calc(100vh - 220px);overflow-y:auto;padding:8px}
 .admin-support-empty-list{padding:12px;text-align:center}
+.admin-support-load-error{margin:8px;padding:9px;border:1px solid #ff5a5a66;border-radius:9px;background:#ff5a5a18;color:#ffb5b5;font-size:12px;overflow-wrap:anywhere}
 .admin-support-conversation{display:flex;width:100%;min-width:0;flex-direction:column;gap:4px;margin-bottom:7px;padding:10px;border:1px solid transparent;border-radius:9px;background:var(--c2);color:var(--tx);text-align:left}
 .admin-support-conversation.selected{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 15%,var(--c2))}
 .admin-support-conversation b,.admin-support-conversation span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

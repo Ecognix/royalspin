@@ -1040,18 +1040,35 @@ export function Support({ u, onBack }) {
   const [creating, setCreating] = useState(false)
   const [loadingConversations, setLoadingConversations] = useState(true)
   const [loadingMessages, setLoadingMessages] = useState(false)
-  const [legacyMode, setLegacyMode] = useState(false)
-  const [chatNotice, setChatNotice] = useState('')
   const [chatError, setChatError] = useState('')
   const messagesEndRef = useRef(null)
 
+  async function supportRequest(url, options = {}) {
+    const response = await fetch(url, {
+      ...options,
+      credentials: 'same-origin',
+      headers: {
+        ...(options.headers || {}),
+        ...(options.body ? { 'Content-Type': 'application/json' } : {})
+      }
+    })
+    let result
+    try {
+      result = await response.json()
+    } catch {
+      result = {}
+    }
+    if (!response.ok) {
+      const error = new Error(result.error || 'Support request failed.')
+      error.status = response.status
+      throw error
+    }
+    return result
+  }
+
   function supportErrorMessage(error) {
-    if (['42P01', '42703', 'PGRST204', 'PGRST205'].includes(error?.code)) {
-      return 'Support chat needs a database update. Please ask the site administrator to run or rerun support_messages_migration.sql.'
-    }
-    if (error?.code === '42501' || error?.code === 'PGRST301') {
-      return 'Support chat database permissions are not configured. Please contact the site administrator.'
-    }
+    if (error?.status === 401) return 'Please sign out and sign in again to activate secure support chat.'
+    if (error?.status === 503) return error.message
     return error?.message || 'An unexpected database error occurred.'
   }
 
@@ -1061,64 +1078,12 @@ export function Support({ u, onBack }) {
     }
     if (showLoading) setLoadingConversations(true)
     try {
-      const { data, error } = await supabase
-        .from('support_conversations')
-        .select('id, created_at, updated_at')
-        .eq('user_id', u.id)
-        .order('updated_at', { ascending: false })
-        .limit(100)
-      if (error) {
-        const missingConversationSchema = ['42703', 'PGRST204', 'PGRST205'].includes(error.code)
-          && /support_conversations|conversation_id/i.test(error.message || '')
-        if (!missingConversationSchema) throw error
-
-        const { data: legacyMessages, error: legacyError } = await supabase
-          .from('support_messages')
-          .select('id, sender_role, message, created_at')
-          .eq('user_id', u.id)
-          .order('created_at', { ascending: true })
-        if (legacyError) throw legacyError
-
-        const id = `legacy:${u.id}`
-        const history = legacyMessages || []
-        const firstMessage = history[0]
-        const lastMessage = history[history.length - 1]
-        setLegacyMode(true)
-        setConversations([{
-          id,
-          created_at: firstMessage?.created_at || new Date().toISOString(),
-          updated_at: lastMessage?.created_at || new Date().toISOString()
-        }])
-        setPreviews(lastMessage ? { [id]: lastMessage } : {})
-        setSelectedConversationId(id)
-        setChatNotice('Your existing support chat is available. Apply support_messages_migration.sql to enable separate new chats.')
-        setChatError('')
-        return
-      }
-
-      const rows = data || []
-      setLegacyMode(false)
-      setChatNotice('')
+      const { conversations: rows, previews } = await supportRequest('/api/support/conversations')
       setConversations(rows)
+      setPreviews(previews || {})
       setSelectedConversationId(current => (
         rows.some(conversation => conversation.id === current) ? current : rows[0]?.id || null
       ))
-      if (rows.length) {
-        const { data: messageRows, error: messageError } = await supabase
-          .from('support_messages')
-          .select('conversation_id, sender_role, message, created_at')
-          .in('conversation_id', rows.map(conversation => conversation.id))
-          .order('created_at', { ascending: false })
-          .limit(1000)
-        if (messageError) throw messageError
-        const latestByConversation = {}
-        ;(messageRows || []).forEach(message => {
-          if (!latestByConversation[message.conversation_id]) latestByConversation[message.conversation_id] = message
-        })
-        setPreviews(latestByConversation)
-      } else {
-        setPreviews({})
-      }
       setChatError('')
     } catch (error) {
       console.error('Support conversations load error:', error)
@@ -1143,15 +1108,9 @@ export function Support({ u, onBack }) {
     }
     if (showLoading) setLoadingMessages(true)
     try {
-      let messagesQuery = supabase
-        .from('support_messages')
-        .select('id, sender_role, message, created_at')
-        .eq('user_id', u.id)
-      if (!conversationId.startsWith('legacy:')) {
-        messagesQuery = messagesQuery.eq('conversation_id', conversationId)
-      }
-      const { data, error } = await messagesQuery.order('created_at', { ascending: true })
-      if (error) throw error
+      const { messages: data } = await supportRequest(
+        `/api/support/messages?conversationId=${encodeURIComponent(conversationId)}`
+      )
       setMessages(data || [])
       setChatError('')
     } catch (error) {
@@ -1178,18 +1137,9 @@ export function Support({ u, onBack }) {
 
   async function createConversation() {
     if (!u?.id || creating) return
-    if (legacyMode) {
-      setChatNotice('Separate chats need a database update. Your current support conversation remains available.')
-      return
-    }
     setCreating(true)
     try {
-      const { data, error } = await supabase
-        .from('support_conversations')
-        .insert({ user_id: u.id })
-        .select('id, created_at, updated_at')
-        .single()
-      if (error) throw error
+      const { conversation: data } = await supportRequest('/api/support/conversations', { method: 'POST' })
       setConversations(current => [data, ...current.filter(item => item.id !== data.id)])
       setSelectedConversationId(data.id)
       setHistoryOpen(false)
@@ -1213,12 +1163,7 @@ export function Support({ u, onBack }) {
       if (!conversationId) {
         setCreating(true)
         try {
-          const { data, error } = await supabase
-            .from('support_conversations')
-            .insert({ user_id: u.id })
-            .select('id, created_at, updated_at')
-            .single()
-          if (error) throw error
+          const { conversation: data } = await supportRequest('/api/support/conversations', { method: 'POST' })
           conversationId = data.id
           setConversations(current => [data, ...current.filter(item => item.id !== data.id)])
           setSelectedConversationId(data.id)
@@ -1229,16 +1174,10 @@ export function Support({ u, onBack }) {
         }
       }
 
-      const newMessage = {
-        user_id: u.id,
-        sender_role: 'user',
-        message
-      }
-      if (!conversationId.startsWith('legacy:')) {
-        newMessage.conversation_id = conversationId
-      }
-      const { error } = await supabase.from('support_messages').insert(newMessage)
-      if (error) throw error
+      await supportRequest('/api/support/messages', {
+        method: 'POST',
+        body: JSON.stringify({ conversationId, message })
+      })
 
       setDraft('')
       setChatError('')
@@ -1267,7 +1206,7 @@ export function Support({ u, onBack }) {
           <button type="button" className="support-history-toggle" onClick={() => setHistoryOpen(open => !open)}>
             {historyOpen ? 'Close history' : `History (${conversations.length})`}
           </button>
-          <button type="button" className="support-new-chat" onClick={createConversation} disabled={creating || sending || legacyMode}>
+          <button type="button" className="support-new-chat" onClick={createConversation} disabled={creating || sending}>
             {creating ? 'Starting…' : '+ New chat'}
           </button>
         </header>
@@ -1297,7 +1236,6 @@ export function Support({ u, onBack }) {
           </aside>
         )}
         <div className="support-messages" aria-live="polite">
-          {chatNotice && <div className="support-state">{chatNotice}</div>}
           {loadingMessages && !messages.length && <div className="support-state">Loading conversation…</div>}
           {!selectedConversationId && !loadingConversations && !chatError && (
             <div className="support-welcome">Hi! Type a message below to start a chat and our team will get back to you here.</div>

@@ -48,6 +48,8 @@ ALTER TABLE public.support_messages ENABLE ROW LEVEL SECURITY;
 
 GRANT SELECT, INSERT ON public.support_conversations TO authenticated;
 GRANT SELECT, INSERT ON public.support_messages TO authenticated;
+GRANT SELECT, INSERT ON public.support_conversations TO service_role;
+GRANT SELECT, INSERT ON public.support_messages TO service_role;
 
 CREATE OR REPLACE FUNCTION public.is_current_user_admin()
 RETURNS BOOLEAN

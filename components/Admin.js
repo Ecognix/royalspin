@@ -597,7 +597,18 @@ function CrashRoundsAdmin() {
 export default function Admin() {
   const [ok, setOk] = useState(false), [authed, setAuthed] = useState(false)
   useEffect(() => { setOk(true); setAuthed(sessionStorage.getItem('rs-admin') === '1') }, [])
-  return <>{ok && (authed ? <Panel onOut={() => { sessionStorage.removeItem('rs-admin'); setAuthed(false) }} /> : <Login onIn={() => { sessionStorage.setItem('rs-admin', '1'); setAuthed(true) }} />)}<Notifications /></>
+  const logout = async () => {
+    try {
+      const response = await fetch('/api/auth/session?role=admin', { method: 'DELETE' })
+      if (!response.ok) throw new Error(`Session logout failed (${response.status})`)
+    } catch (error) {
+      console.error('Admin session logout error:', error)
+    } finally {
+      sessionStorage.removeItem('rs-admin')
+      setAuthed(false)
+    }
+  }
+  return <>{ok && (authed ? <Panel onOut={logout} /> : <Login onIn={() => { sessionStorage.setItem('rs-admin', '1'); setAuthed(true) }} />)}<Notifications /></>
 }
 
 function Login({ onIn }) {
@@ -679,6 +690,7 @@ function Panel({ onOut }) {
   const [betsData, setBetsData] = useState([])
   const [reqsData, setReqsData] = useState([])
   const [supportMessages, setSupportMessages] = useState([])
+  const [supportLoadError, setSupportLoadError] = useState('')
   const [supportConversationId, setSupportConversationId] = useState(null)
   const [supportReply, setSupportReply] = useState('')
   const [sendingSupportReply, setSendingSupportReply] = useState(false)
@@ -703,33 +715,19 @@ function Panel({ onOut }) {
   }
 
   const fetchSupportMessages = async () => {
-    const { data, error } = await supabase
-      .from('support_messages')
-      .select('id, user_id, conversation_id, sender_role, message, created_at, users:user_id(phone,name)')
-      .order('created_at', { ascending: true })
-    if (error) {
-      const missingConversationSchema = ['42703', 'PGRST204', 'PGRST205'].includes(error.code)
-        && /support_conversations|conversation_id/i.test(error.message || '')
-      if (!missingConversationSchema) {
-        console.error('fetchSupportMessages error:', error)
-        return
-      }
-
-      const { data: legacyMessages, error: legacyError } = await supabase
-        .from('support_messages')
-        .select('id, user_id, sender_role, message, created_at, users:user_id(phone,name)')
-        .order('created_at', { ascending: true })
-      if (legacyError) {
-        console.error('fetchSupportMessages legacy load error:', legacyError)
-        return
-      }
-      setSupportMessages((legacyMessages || []).map(message => ({
-        ...message,
-        conversation_id: `legacy:${message.user_id}`
-      })))
-      return
+    try {
+      const response = await fetch('/api/admin/support', { cache: 'no-store', credentials: 'same-origin' })
+      let result = {}
+      try {
+        result = await response.json()
+      } catch {}
+      if (!response.ok) throw new Error(result.error || 'Could not load support inbox.')
+      setSupportMessages(result.messages || [])
+      setSupportLoadError('')
+    } catch (error) {
+      console.error('fetchSupportMessages error:', error)
+      setSupportLoadError(error.message || 'Could not load support inbox.')
     }
-    setSupportMessages(data || [])
   }
 
   const fetchAdminData = async () => {
@@ -1181,21 +1179,22 @@ function Panel({ onOut }) {
     if (!conversationMessage || !message || sendingSupportReply) return
     setSendingSupportReply(true)
     try {
-      const reply = {
-        user_id: conversationMessage.user_id,
-        sender_role: 'admin',
-        message
-      }
-      if (!supportConversationId.startsWith('legacy:')) {
-        reply.conversation_id = supportConversationId
-      }
-      const { error } = await supabase.from('support_messages').insert(reply)
-      if (error) throw error
+      const response = await fetch('/api/admin/support', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId: supportConversationId, message })
+      })
+      let result = {}
+      try {
+        result = await response.json()
+      } catch {}
+      if (!response.ok) throw new Error(result.error || 'Could not send support reply.')
       setSupportReply('')
       await fetchSupportMessages()
     } catch (error) {
       console.error('Support reply error:', error)
-      toast('Could not send support reply')
+      setSupportLoadError(error.message || 'Could not send support reply.')
     } finally {
       setSendingSupportReply(false)
     }
@@ -1718,6 +1717,7 @@ function Panel({ onOut }) {
                   <div><b>Customer care inbox</b><small>{supportConversations.length} conversations</small></div>
                   <button type="button" onClick={fetchSupportMessages} aria-label="Refresh support inbox">↻</button>
                 </div>
+                {supportLoadError && <p className="admin-support-load-error" role="alert">{supportLoadError}</p>}
                 <div className="admin-support-conversation-list">
                   {!supportConversations.length && <p className="small admin-support-empty-list">No support messages yet.</p>}
                   {supportConversations.map(conversation => {
