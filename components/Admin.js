@@ -688,6 +688,8 @@ function Panel({ onOut }) {
 
   useEffect(() => {
     fetchAdminData()
+    const refreshTimer = setInterval(fetchAdminData, 30000)
+    return () => clearInterval(refreshTimer)
   }, [])
 
   const refreshData = async () => {
@@ -1059,7 +1061,7 @@ function Panel({ onOut }) {
 
   const dayMap = {}
   statBets.forEach(x => {
-    const day = new Date(x.created_at).toLocaleDateString('en-CA')
+    const day = new Date(x.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
     const d = dayMap[day] || (dayMap[day] = { day, bets: 0, volume: 0, payout: 0, games: {} })
     const amt = Number(x.amount) || 0, win = Number(x.win_amount) || 0
     d.bets++; d.volume += amt; d.payout += win
@@ -1351,6 +1353,10 @@ function Panel({ onOut }) {
           {/* TAB 1: OVERVIEW */}
           {at === 'over' && (
             <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <b>Net Profit Overview</b>
+                <button onClick={refreshData} style={{ padding: '5px 10px', fontSize: 12, background: 'var(--c2)' }}>Refresh</button>
+              </div>
               <table style={{ width: '100%', minWidth: 300 }}>
                 <tbody>
                   <tr><td>Players Registered</td><td><b>{players.length}</b></td></tr>
