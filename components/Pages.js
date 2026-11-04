@@ -5,6 +5,7 @@ import {
   db, toast, f, createRequest, refreshUser, changePassword,
   supabase, REFERRAL_REWARD_PERCENT, BET_FEE_WAGER_STEP, BET_FEE_AMOUNT, MIN_WITHDRAWAL_AMOUNT
 } from '../lib/supabase-db'
+import { GAMES } from './meta'
 
 export function HubIcon({ name }) {
   const icons = {
@@ -23,7 +24,7 @@ export function HubIcon({ name }) {
     coupon: <><path d="M3 6h18v4a2 2 0 0 0 0 4v4H3v-4a2 2 0 0 0 0-4z" /><path d="M13 8v2m0 4v2" /></>,
     chart: <><path d="M4 20V10m5 10V4m5 16v-7m5 7V7" /><path d="M2 21h20" /></>,
     language: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" /></>,
-    settings: <><circle cx="12" cy="12" r="3" /><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.7a8 8 0 0 1-1.7 1l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.7-1l-1.7.7-1.4-2.4 1.4-1.1a7 7 0 0 1 0-2l-1.4-1.1 1.4-2.4 1.7.7a8 8 0 0 1 1.7-1l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.7 1l1.7-.7 1.4 2.4-1.4 1.1a7 7 0 0 1 0 2z" /></>,
+    settings: <><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" /><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.7a8 8 0 0 1-1.7 1l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.7-1l-1.7.7-1.4-2.4 1.4-1.1a7 7 0 0 1 0-2l-1.4-1.1 1.4-2.4 1.7.7a8 8 0 0 1 1.7-1l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.7 1l1.7-.7 1.4 2.4-1.4 1.1a7 7 0 0 1 0 2z" /></>,
     feedback: <><path d="M4 5h16v12H9l-5 4z" /><path d="M8 9h8m-8 4h5" /></>,
     announcement: <><path d="M4 14V9l15-5v15L4 14z" /><path d="m7 15 2 6h4l-2-5M19 9h2v5h-2" /></>,
     support: <><path d="M4 13v-2a8 8 0 0 1 16 0v2" /><path d="M4 13h3v6H5a2 2 0 0 1-2-2v-2a2 2 0 0 1 1-2zm16 0h-3v6h2a2 2 0 0 0 2-2v-2a2 2 0 0 0-1-2zM17 20a5 5 0 0 1-5 2h-1" /></>,
@@ -357,7 +358,125 @@ export function Wallet({ u, me, initialTab = 'd' }) {
   )
 }
 
-export function Activity({ u, initialTab = 'bets' }) {
+function getIndiaPeriodRange(period) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date())
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]))
+  const today = Date.UTC(Number(values.year), Number(values.month) - 1, Number(values.day))
+  const day = 24 * 60 * 60 * 1000
+  let start = today
+  let end = today + day
+
+  if (period === 'yesterday') {
+    start = today - day
+    end = today
+  } else if (period === 'week') {
+    const weekday = new Date(today).getUTCDay()
+    start = today - ((weekday + 6) % 7) * day
+  } else if (period === 'month') {
+    start = Date.UTC(Number(values.year), Number(values.month) - 1, 1)
+    end = Date.UTC(Number(values.year), Number(values.month), 1)
+  }
+
+  const indiaMidnight = timestamp => new Date(timestamp - (5 * 60 + 30) * 60 * 1000).toISOString()
+  return { start: indiaMidnight(start), end: indiaMidnight(end) }
+}
+
+function RewardsLanding({ u, onNavigate, title }) {
+  const [todayBonus, setTodayBonus] = useState(0)
+  const [bonusError, setBonusError] = useState('')
+
+  useEffect(() => {
+    if (!u?.id) return
+    let active = true
+    async function loadTodayBonus() {
+      const { start, end } = getIndiaPeriodRange('today')
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('amount')
+        .eq('user_id', u.id)
+        .in('type', ['Deposit reward', 'Referral reward'])
+        .gte('created_at', start)
+        .lt('created_at', end)
+      if (!active) return
+      if (error) {
+        console.error('Today bonus load error:', error)
+        setBonusError('Could not load today’s bonus.')
+        return
+      }
+      setTodayBonus((data || []).reduce((total, row) => total + Math.max(0, Number(row.amount || 0)), 0))
+      setBonusError('')
+    }
+    loadTodayBonus()
+    return () => { active = false }
+  }, [u?.id])
+
+  const comingSoon = () => toast('Coming soon')
+  const shortcuts = [
+    { icon: 'account', label: 'Invite bonus', action: () => onNavigate('referral') },
+    { icon: 'activity', label: 'Betting rebate', action: comingSoon },
+    { icon: 'vip', label: 'Super jackpot', action: comingSoon },
+    { icon: 'gift', label: 'First gift', action: comingSoon },
+    { icon: 'promotion', label: 'Invite wheel', action: comingSoon }
+  ]
+
+  return (
+    <div className="rewards-page">
+      <div className="page-title"><div><h2>{title}</h2><p>Rewards, offers and activity</p></div></div>
+      <section className="rewards-hero">
+        <div className="rewards-brand"><span>♠</span> ROYAL SPIN REWARDS</div>
+        <div className="rewards-totals">
+          <div><small>Today's bonus</small><strong>₹{f(todayBonus)}</strong></div>
+          <div><small>Total bonus</small><strong>₹{f(u.bonus_balance || 0)}</strong></div>
+        </div>
+        {bonusError && <p className="rewards-error">{bonusError}</p>}
+        <div className="rewards-actions">
+          <button type="button" onClick={() => onNavigate('bonus')}>Bonus details</button>
+          <button type="button" onClick={() => onNavigate('gameStats')}>Game statistics</button>
+        </div>
+      </section>
+
+      <section className="rewards-shortcuts" aria-label="Bonus options">
+        {shortcuts.map((item, index) => (
+          <button key={item.label} className={'reward-shortcut reward-shortcut-' + index} onClick={item.action}>
+            <span><HubIcon name={item.icon} /></span><b>{item.label}</b>
+          </button>
+        ))}
+      </section>
+
+      <section className="reward-feature-grid">
+        <button className="reward-feature" onClick={comingSoon}>
+          <span className="reward-art reward-art-gift"><HubIcon name="gift" /></span>
+          <b>Gift codes</b>
+          <small>Enter a reward code to check available gifts.</small>
+          <strong>View gifts <span>›</span></strong>
+        </button>
+        <button className="reward-feature" onClick={comingSoon}>
+          <span className="reward-art reward-art-calendar"><HubIcon name="bonus" /></span>
+          <b>Attendance bonus</b>
+          <small>Check back for sign-in rewards and special offers.</small>
+          <strong>View rewards <span>›</span></strong>
+        </button>
+      </section>
+
+      <button className="reward-event" onClick={comingSoon}>
+        <span><HubIcon name="vip" /></span>
+        <div><b>Special events</b><small>New Royal Spin events and rewards will appear here.</small></div>
+        <strong>›</strong>
+      </button>
+    </div>
+  )
+}
+
+export function Activity({ u, onNavigate }) {
+  return <RewardsLanding u={u} onNavigate={onNavigate} title="Activity" />
+}
+
+export function ActivityHistory({ u, initialTab = 'bets' }) {
   const [tab, setTab] = useState(initialTab)
   const [bets, setBets] = useState([])
   const [transactions, setTransactions] = useState([])
@@ -509,13 +628,106 @@ export function Activity({ u, initialTab = 'bets' }) {
   )
 }
 
+export function GameStatistics({ u, onBack }) {
+  const [period, setPeriod] = useState('today')
+  const [bets, setBets] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+
+  useEffect(() => {
+    if (!u?.id) return
+    let active = true
+    async function loadStatistics() {
+      setLoading(true)
+      setLoadError('')
+      try {
+        const { start, end } = getIndiaPeriodRange(period)
+        const pageSize = 1000
+        let offset = 0
+        const allBets = []
+        while (true) {
+          const { data, error } = await supabase
+            .from('bets')
+            .select('id,game,amount,win_amount,created_at')
+            .eq('user_id', u.id)
+            .gte('created_at', start)
+            .lt('created_at', end)
+            .order('created_at', { ascending: true })
+            .order('id', { ascending: true })
+            .range(offset, offset + pageSize - 1)
+          if (error) throw error
+          const pageRows = data || []
+          allBets.push(...pageRows)
+          if (pageRows.length < pageSize) break
+          offset += pageSize
+        }
+        if (active) setBets(allBets)
+      } catch (error) {
+        console.error('Game statistics load error:', error)
+        if (active) setLoadError('Could not load game statistics. Please refresh to try again.')
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+    loadStatistics()
+    return () => { active = false }
+  }, [u?.id, period])
+
+  const totals = bets.reduce((summary, bet) => {
+    summary.bet += Number(bet.amount || 0)
+    summary.winning += Number(bet.win_amount || 0)
+    return summary
+  }, { bet: 0, winning: 0 })
+  const gameStats = GAMES.map(([game, label]) => {
+    const gameBets = bets.filter(bet => bet.game === game)
+    return {
+      game,
+      label,
+      bet: gameBets.reduce((total, row) => total + Number(row.amount || 0), 0),
+      count: gameBets.length,
+      winning: gameBets.reduce((total, row) => total + Number(row.win_amount || 0), 0)
+    }
+  })
+
+  return (
+    <div className="game-statistics-page">
+      <div className="page-title game-statistics-title">
+        <button type="button" onClick={onBack} aria-label="Back to account">‹</button>
+        <div><h2>Game statistics</h2></div>
+      </div>
+      <div className="statistics-periods">
+        {[['today', 'Today'], ['yesterday', 'Yesterday'], ['week', 'This week'], ['month', 'This month']].map(([key, label]) => (
+          <button type="button" key={key} className={period === key ? 'selected' : ''} onClick={() => setPeriod(key)}>{label}</button>
+        ))}
+      </div>
+      <section className="statistics-total">
+        <strong>₹{f(totals.bet)}</strong>
+        <span>Total bet</span>
+      </section>
+      {loadError && <p className="page-error">{loadError}</p>}
+      <section className="statistics-games">
+        {gameStats.map(stat => (
+          <article className="statistics-game" key={stat.game}>
+            <h3><span><HubIcon name="chart" /></span>{stat.label}</h3>
+            <div><span>Total bet</span><strong>₹{f(stat.bet)}</strong></div>
+            <div><span>Number of bets</span><strong>{stat.count}</strong></div>
+            <div><span>Winning amount</span><strong className="statistics-winning">₹{f(stat.winning)}</strong></div>
+          </article>
+        ))}
+        {!bets.length && !loading && <p className="statistics-empty">No bets recorded for this period.</p>}
+        {loading && <p className="statistics-empty">Loading statistics…</p>}
+      </section>
+    </div>
+  )
+}
+
 export function AccountHub({ u, isAdmin, onWallet, onActivity, onNavigate, onSupport, onLogout }) {
   const comingSoon = () => toast('Coming soon')
   const accountOptions = [
     { icon: 'notifications', label: 'Notifications', action: comingSoon },
     { icon: 'gift', label: 'Gifts', action: comingSoon },
     { icon: 'coupon', label: 'Top-up coupons', action: comingSoon },
-    { icon: 'chart', label: 'Game statistics', action: comingSoon },
+    { icon: 'chart', label: 'Game statistics', action: () => onNavigate('gameStats') },
     { icon: 'language', label: 'Language', detail: 'English', action: comingSoon }
   ]
   const services = [
@@ -593,25 +805,11 @@ export function AccountHub({ u, isAdmin, onWallet, onActivity, onNavigate, onSup
   )
 }
 
-export function PromotionHub({ u }) {
-  const comingSoon = () => toast('Coming soon')
+export function PromotionHub({ u, onNavigate }) {
   return (
     <div className="promotion-page">
-      <div className="page-title"><div><h2>Promotion</h2><p>Rewards and invitations</p></div></div>
+      <RewardsLanding u={u} onNavigate={onNavigate} title="Promotion" />
       <Referral u={u} />
-      <section className="promotion-grid">
-        {[
-          ['gift', 'Invite bonus'],
-          ['activity', 'Betting rewards'],
-          ['vip', 'Jackpot'],
-          ['gift', 'First gift'],
-          ['promotion', 'Invite wheel'],
-          ['bonus', 'Attendance bonus'],
-          ['promotion', 'Special events']
-        ].map(([icon, title]) => (
-          <button key={title} onClick={comingSoon}><span><HubIcon name={icon} /></span><b>{title}</b><small>Coming soon</small></button>
-        ))}
-      </section>
     </div>
   )
 }

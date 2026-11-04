@@ -142,7 +142,7 @@ import { GAMES, ICON } from './meta'
 
 import { Dice, Limbo, Mines, Keno, Flip, Crash, Color } from './Games'
 
-import { Wallet, Support, Activity, AccountHub, PromotionHub, HubIcon, Vault, Wager, Bonus, Referral, Profile, Settings } from './Pages'
+import { Wallet, Support, Activity, ActivityHistory, GameStatistics, AccountHub, PromotionHub, HubIcon, Vault, Wager, Bonus, Referral, Profile, Settings } from './Pages'
 
 
 
@@ -851,7 +851,7 @@ function Main() {
 
   const openActivity = (tab = 'bets') => {
     setActivityTab(tab)
-    go('activity')
+    go('history')
   }
 
   const openSupport = () => {
@@ -886,7 +886,7 @@ function Main() {
           <button className="player-balance" type="button" onClick={() => openWallet('d')}>
             <span>Total balance</span><b>{u.hide_balance ? '••••' : `₹${f(u.balance)}`}</b>
           </button>
-          <button className="player-account-button" type="button" onClick={() => go('account')} aria-label="Account">♙</button>
+          <button className="player-account-button" type="button" onClick={() => go('account')} aria-label="Account"><HubIcon name="account" /></button>
         </div>
 
       </header>}
@@ -959,9 +959,13 @@ function Main() {
 
         {view === 'admin' && <Admin u={u} />}
 
-        {view === 'activity' && <Activity u={u} initialTab={activityTab} />}
+        {view === 'activity' && <Activity u={u} onNavigate={go} />}
 
-        {view === 'promotion' && <PromotionHub u={u} />}
+        {view === 'history' && <ActivityHistory u={u} initialTab={activityTab} />}
+
+        {view === 'gameStats' && <GameStatistics u={u} onBack={() => go('account')} />}
+
+        {view === 'promotion' && <PromotionHub u={u} onNavigate={go} />}
 
         {view === 'account' && (
           <AccountHub
@@ -993,7 +997,7 @@ function Main() {
                 ? view === 'activity'
                 : destination === 'promotion'
                   ? ['promotion', 'referral'].includes(view)
-                  : ['account', 'wallet', 'vault', 'wager', 'bonus', 'profile', 'settings'].includes(view)
+                  : ['account', 'wallet', 'vault', 'wager', 'bonus', 'profile', 'settings', 'history', 'gameStats'].includes(view)
             return (
               <button key={destination} className={active ? 'active' : ''} onClick={() => go(destination)}>
                 <span><HubIcon name={icon} /></span><small>{label}</small>
