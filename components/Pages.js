@@ -1047,7 +1047,7 @@ export function Support({ u, onBack }) {
 
   function supportErrorMessage(error) {
     if (['42P01', '42703', 'PGRST204', 'PGRST205'].includes(error?.code)) {
-      return 'Support chat needs a database update. Please ask the site administrator to apply support_messages_migration.sql.'
+      return 'Support chat needs a database update. Please ask the site administrator to run or rerun support_messages_migration.sql.'
     }
     if (error?.code === '42501' || error?.code === 'PGRST301') {
       return 'Support chat database permissions are not configured. Please contact the site administrator.'
@@ -1206,16 +1206,36 @@ export function Support({ u, onBack }) {
 
   async function send() {
     const message = draft.trim()
-    if (!message || sending || loadingMessages || chatError || !u?.id || !selectedConversationId) return
+    if (!message || sending || creating || loadingMessages || !u?.id) return
     setSending(true)
     try {
+      let conversationId = selectedConversationId
+      if (!conversationId) {
+        setCreating(true)
+        try {
+          const { data, error } = await supabase
+            .from('support_conversations')
+            .insert({ user_id: u.id })
+            .select('id, created_at, updated_at')
+            .single()
+          if (error) throw error
+          conversationId = data.id
+          setConversations(current => [data, ...current.filter(item => item.id !== data.id)])
+          setSelectedConversationId(data.id)
+          setHistoryOpen(false)
+          setMessages([])
+        } finally {
+          setCreating(false)
+        }
+      }
+
       const newMessage = {
         user_id: u.id,
         sender_role: 'user',
         message
       }
-      if (!selectedConversationId.startsWith('legacy:')) {
-        newMessage.conversation_id = selectedConversationId
+      if (!conversationId.startsWith('legacy:')) {
+        newMessage.conversation_id = conversationId
       }
       const { error } = await supabase.from('support_messages').insert(newMessage)
       if (error) throw error
@@ -1223,7 +1243,7 @@ export function Support({ u, onBack }) {
       setDraft('')
       setChatError('')
       await Promise.all([
-        loadMessages(selectedConversationId),
+        loadMessages(conversationId),
         loadConversations()
       ])
     } catch (error) {
@@ -1247,7 +1267,7 @@ export function Support({ u, onBack }) {
           <button type="button" className="support-history-toggle" onClick={() => setHistoryOpen(open => !open)}>
             {historyOpen ? 'Close history' : `History (${conversations.length})`}
           </button>
-          <button type="button" className="support-new-chat" onClick={createConversation} disabled={creating || legacyMode}>
+          <button type="button" className="support-new-chat" onClick={createConversation} disabled={creating || sending || legacyMode}>
             {creating ? 'Starting…' : '+ New chat'}
           </button>
         </header>
@@ -1280,7 +1300,7 @@ export function Support({ u, onBack }) {
           {chatNotice && <div className="support-state">{chatNotice}</div>}
           {loadingMessages && !messages.length && <div className="support-state">Loading conversation…</div>}
           {!selectedConversationId && !loadingConversations && !chatError && (
-            <div className="support-welcome">Hi! Start a new chat and our team will get back to you here.</div>
+            <div className="support-welcome">Hi! Type a message below to start a chat and our team will get back to you here.</div>
           )}
           {selectedConversationId && !messages.length && !loadingMessages && !chatError && (
             <div className="support-welcome">Hi! Send us a message and our team will get back to you here.</div>
@@ -1307,13 +1327,13 @@ export function Support({ u, onBack }) {
                 send()
               }
             }}
-            placeholder={selectedConversationId ? 'Type a message…' : 'Start a new chat to send a message'}
+            placeholder="Type a message…"
             rows={1}
             maxLength={2000}
-            disabled={!selectedConversationId || loadingMessages || !!chatError}
+            disabled={!u?.id || creating || loadingMessages || sending}
             aria-label="Type a support message"
           />
-          <button type="submit" className="support-send" disabled={!selectedConversationId || sending || loadingMessages || !!chatError || !draft.trim()} aria-label="Send message">
+          <button type="submit" className="support-send" disabled={!u?.id || creating || sending || loadingMessages || !draft.trim()} aria-label="Send message">
             {sending ? '…' : '➤'}
           </button>
         </form>

@@ -43,20 +43,91 @@ CREATE INDEX IF NOT EXISTS idx_support_messages_user_created
 CREATE INDEX IF NOT EXISTS idx_support_messages_conversation_created
   ON support_messages(conversation_id, created_at);
 
-CREATE OR REPLACE FUNCTION bump_support_conversation_updated_at()
+ALTER TABLE public.support_conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.support_messages ENABLE ROW LEVEL SECURITY;
+
+GRANT SELECT, INSERT ON public.support_conversations TO authenticated;
+GRANT SELECT, INSERT ON public.support_messages TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.is_current_user_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.users
+    WHERE id = auth.uid() AND is_admin = TRUE
+  )
+$$;
+GRANT EXECUTE ON FUNCTION public.is_current_user_admin() TO authenticated;
+
+DROP POLICY IF EXISTS "Users can read own support conversations" ON public.support_conversations;
+CREATE POLICY "Users can read own support conversations"
+  ON public.support_conversations FOR SELECT TO authenticated
+  USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can create own support conversations" ON public.support_conversations;
+CREATE POLICY "Users can create own support conversations"
+  ON public.support_conversations FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Admins can read all support conversations" ON public.support_conversations;
+CREATE POLICY "Admins can read all support conversations"
+  ON public.support_conversations FOR SELECT TO authenticated
+  USING (public.is_current_user_admin());
+
+DROP POLICY IF EXISTS "Users can read own support messages" ON public.support_messages;
+CREATE POLICY "Users can read own support messages"
+  ON public.support_messages FOR SELECT TO authenticated
+  USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Admins can read all support messages" ON public.support_messages;
+CREATE POLICY "Admins can read all support messages"
+  ON public.support_messages FOR SELECT TO authenticated
+  USING (public.is_current_user_admin());
+
+DROP POLICY IF EXISTS "Users can send own support messages" ON public.support_messages;
+CREATE POLICY "Users can send own support messages"
+  ON public.support_messages FOR INSERT TO authenticated
+  WITH CHECK (
+    auth.uid() = user_id
+    AND sender_role = 'user'
+    AND EXISTS (
+      SELECT 1 FROM public.support_conversations
+      WHERE id = conversation_id AND user_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "Admins can send support replies" ON public.support_messages;
+CREATE POLICY "Admins can send support replies"
+  ON public.support_messages FOR INSERT TO authenticated
+  WITH CHECK (
+    sender_role = 'admin'
+    AND public.is_current_user_admin()
+    AND EXISTS (
+      SELECT 1 FROM public.support_conversations
+      WHERE id = conversation_id AND user_id = public.support_messages.user_id
+    )
+  );
+
+CREATE OR REPLACE FUNCTION public.bump_support_conversation_updated_at()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 BEGIN
-  UPDATE support_conversations
+  UPDATE public.support_conversations
   SET updated_at = NOW()
   WHERE id = NEW.conversation_id;
   RETURN NEW;
 END;
 $$;
 
-DROP TRIGGER IF EXISTS support_message_updates_conversation ON support_messages;
+DROP TRIGGER IF EXISTS support_message_updates_conversation ON public.support_messages;
 CREATE TRIGGER support_message_updates_conversation
-AFTER INSERT ON support_messages
+AFTER INSERT ON public.support_messages
 FOR EACH ROW
-EXECUTE FUNCTION bump_support_conversation_updated_at();
+EXECUTE FUNCTION public.bump_support_conversation_updated_at();
