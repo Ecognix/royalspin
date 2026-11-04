@@ -289,9 +289,44 @@ export function Notifications() {
 
 
 
+function WinGoResultCard({ notif, onDismiss, progress }) {
+  const isWin = notif.type === 'win'
+  const number = notif.resultNumber
+  const resultColor = number === 0
+    ? 'Red + Violet'
+    : number === 5
+      ? 'Green + Violet'
+      : number % 2 === 0 ? 'Red' : 'Green'
+  const resultTone = number % 2 === 0 ? 'red' : 'green'
+
+  return (
+    <div className="win-go-result-overlay">
+      <section className="win-go-result-card" role="dialog" aria-modal="true" aria-label="WIN GO result">
+        <button type="button" className="win-go-result-close" onClick={onDismiss} aria-label="Close result">×</button>
+        <div className="win-go-result-medallion" aria-hidden="true">✦</div>
+        <h2>{isWin ? 'Congratulations' : 'Round complete'}</h2>
+        <div className="win-go-result-tags">
+          <span>Lottery result</span>
+          <b className={`win-go-result-chip ${resultTone}`}>{resultColor}</b>
+          <b className="win-go-result-chip number">{number}</b>
+          <b className="win-go-result-chip size">{number >= 5 ? 'Big' : 'Small'}</b>
+        </div>
+        <div className="win-go-result-payout">
+          <span>{isWin ? 'Net win' : 'Net loss'}</span>
+          <strong className={isWin ? 'win' : 'loss'}>{notif.message}</strong>
+          <small>{notif.periodTitle} · Period #{notif.periodNumber}</small>
+          <small>Bet ₹{f(notif.betAmount)} · Return ₹{f(notif.returnAmount)}</small>
+        </div>
+        <p className="win-go-result-autoclose"><span aria-hidden="true">✓</span> {Math.ceil((notif.autoClose || 3000) / 1000)} seconds auto close</p>
+        <div className="win-go-result-progress"><i style={{ width: `${progress}%` }} /></div>
+      </section>
+    </div>
+  )
+}
+
 function NotificationCard({ notif, onDismiss }) {
 
-  const { type, title, message, details, autoClose = 2000, center = false } = notif
+  const { type, title, message, details, autoClose = 2000, center = false, resultNumber } = notif
 
   const [progress, setProgress] = useState(100)
 
@@ -343,6 +378,10 @@ function NotificationCard({ notif, onDismiss }) {
 
     )
 
+  }
+
+  if (center && Number.isInteger(resultNumber)) {
+    return <WinGoResultCard notif={notif} onDismiss={onDismiss} progress={progress} />
   }
 
   
@@ -434,7 +473,7 @@ function NotificationCard({ notif, onDismiss }) {
 
         >×</button>
 
-        <div style={{ fontSize: 16, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 4 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: isWin ? 'var(--win)' : 'var(--bad)', marginBottom: 4 }}>
 
           {isWin ? 'NET PROFIT' : 'NET LOSS'}
 
@@ -442,7 +481,7 @@ function NotificationCard({ notif, onDismiss }) {
 
         <div style={{ fontSize: 12, color: 'var(--mut)', marginBottom: 6, fontWeight: 500 }}>{title}</div>
 
-        <div style={{ fontSize: 22, fontWeight: 800, color: isWin ? 'var(--ac)' : 'var(--bad)' }}>
+        <div style={{ fontSize: 22, fontWeight: 800, color: isWin ? 'var(--win)' : 'var(--bad)' }}>
 
           {message}
 
@@ -450,7 +489,7 @@ function NotificationCard({ notif, onDismiss }) {
 
         {/* Animated timeout progress bar - joined to bottom edge */}
 
-        <div className="winloss-card" style={{
+        <div className="winloss-progress" style={{
 
           height: 3, 
 
@@ -476,7 +515,7 @@ function NotificationCard({ notif, onDismiss }) {
 
               width: `${progress}%`, 
 
-              background: isWin ? 'var(--ac)' : 'var(--bad)',
+              background: isWin ? 'var(--win)' : 'var(--bad)',
 
               transition: 'width 0.05s linear'
 
@@ -498,7 +537,7 @@ function NotificationCard({ notif, onDismiss }) {
 
   return (
 
-    <div style={{ 
+    <div className="winloss-card" style={{
 
       minWidth: 280,
 
@@ -579,7 +618,7 @@ function NotificationCard({ notif, onDismiss }) {
 
       >×</button>
 
-      <div style={{ fontSize: 16, fontWeight: 700, color: isWin ? 'var(--ac)' : 'var(--bad)', marginBottom: 4 }}>
+      <div style={{ fontSize: 16, fontWeight: 700, color: isWin ? 'var(--win)' : 'var(--bad)', marginBottom: 4 }}>
 
         {isWin ? 'WIN' : 'LOSS'}
 
@@ -587,7 +626,7 @@ function NotificationCard({ notif, onDismiss }) {
 
       <div style={{ fontSize: 12, color: 'var(--mut)', marginBottom: 6, fontWeight: 500 }}>{title}</div>
 
-      <div style={{ fontSize: 22, fontWeight: 800, color: isWin ? 'var(--ac)' : 'var(--bad)' }}>
+      <div style={{ fontSize: 22, fontWeight: 800, color: isWin ? 'var(--win)' : 'var(--bad)' }}>
 
         {isWin ? '+' : ''}₹{message.replace(/[^0-9.]/g, '')}
 
@@ -623,7 +662,7 @@ function NotificationCard({ notif, onDismiss }) {
 
             width: `${progress}%`, 
 
-            background: isWin ? 'var(--ac)' : 'var(--bad)',
+            background: isWin ? 'var(--win)' : 'var(--bad)',
 
             transition: 'width 0.05s linear'
 

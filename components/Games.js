@@ -41,27 +41,34 @@ export function Dice({ amt }) {
     if (busy) return
     const placed = placeDemoBet('dice', amt); if (!placed) return
     const { amount: a, outcome } = placed
-    setBusy(true); setLastResult(null)
+    setBusy(true); setLastResult(null); setRes(null); setSpin(50)
     const x = outcome.won
       ? over ? t + (100 - t) / 2 : t / 2
       : over ? t / 2 : t + (100 - t) / 2
     const w = over ? x > t : x < t
-    setRes({ x, w }); let n = 0
-    const iv = setInterval(() => {
-      setSpin(Math.random() * 100)
-      if (++n > 9) {
-        clearInterval(iv); setSpin(null)
-        const win = w ? a * mult : 0
-        pay('dice', a, win)
-        setLastResult({ w, win, a, x })
-        if (w) {
-          notify({ type: 'win', title: `Dice - ${over ? 'Over' : 'Under'} ${t}`, message: `Win ₹${f(win)}`, details: `Rolled ${f(x)} · Chance ${ch}% · Payout ${f(mult)}×` })
-        } else {
-          notify({ type: 'loss', title: `Dice - ${over ? 'Over' : 'Under'} ${t}`, message: `Lost ₹${f(a)}`, details: `Rolled ${f(x)} · Chance ${ch}%` })
-        }
-        setBusy(false)
+    const startTime = performance.now()
+    const duration = 1000
+    const animate = (time) => {
+      const progress = Math.min(1, (time - startTime) / duration)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setSpin(50 + (x - 50) * eased)
+      if (progress < 1) {
+        requestAnimationFrame(animate)
+        return
       }
-    }, 70)
+      setSpin(null)
+      setRes({ x, w })
+      const win = w ? a * mult : 0
+      pay('dice', a, win)
+      setLastResult({ w, win, a, x })
+      if (w) {
+        notify({ type: 'win', title: `Dice - ${over ? 'Over' : 'Under'} ${t}`, message: `Win ₹${f(win)}`, details: `Rolled ${f(x)} · Chance ${ch}% · Payout ${f(mult)}×` })
+      } else {
+        notify({ type: 'loss', title: `Dice - ${over ? 'Over' : 'Under'} ${t}`, message: `Lost ₹${f(a)}`, details: `Rolled ${f(x)} · Chance ${ch}%` })
+      }
+      setBusy(false)
+    }
+    requestAnimationFrame(animate)
   }
   const markerX = spin != null ? spin : res?.x
   const markerColor = markerX == null
@@ -253,7 +260,7 @@ export function Mines({ amt }) {
       </p>
       <div className="row">
         <button className="p" onClick={start} disabled={on}>{on ? 'Round live' : M ? 'Play again' : 'Start'}</button>
-        <button onClick={cash} disabled={!on || !M.f}>Cash out</button>
+        <button className="cashout-button" onClick={cash} disabled={!on || !M.f}>Cash out</button>
       </div>
     </>
   )
@@ -529,8 +536,8 @@ export function Crash({ amt }) {
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-        <button className="p" style={{ ...FULL, flex: 1, background: co ? '#ffd54f' : canCancel ? 'var(--bad)' : undefined }} onClick={act}>{label}</button>
-        {canCancel && <button className="p" style={{ ...FULL, flex: 1, background: 'var(--bad)' }} onClick={cancelBet}>Cancel Bet</button>}
+        <button className={'p' + (co ? ' cashout-button' : '')} style={{ ...FULL, flex: 1, background: co ? '#168a4b' : canCancel ? 'var(--bad)' : undefined }} onClick={act}>{label}</button>
+        {canCancel && <button className="p cashout-button" style={{ ...FULL, flex: 1, background: '#168a4b' }} onClick={cancelBet}>Cancel Bet</button>}
       </div>
       <p className="small">A ₹{BET_FEE_AMOUNT} fee is charged for each completed ₹{BET_FEE_WAGER_STEP} of cumulative bets. Multiplier begins at 1.00× and accelerates smoothly. Cash out anytime before the crash to win your bet multiplied by the live flight rate.</p>
     </>
