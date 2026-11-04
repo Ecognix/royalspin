@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { 
   db, toast, f, createRequest, refreshUser, changePassword,
@@ -342,9 +342,26 @@ export function Support({ u }) {
   const [messages, setMessages] = useState([])
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [chatError, setChatError] = useState('')
+  const [isOpen, setIsOpen] = useState(false)
+  const messagesEndRef = useRef(null)
+
+  function supportErrorMessage(error) {
+    if (error?.code === '42P01' || error?.code === 'PGRST205') {
+      return 'Support chat is not set up yet. Please ask the site administrator to apply support_messages_migration.sql.'
+    }
+    if (error?.code === '42501' || error?.code === 'PGRST301') {
+      return 'Support chat database permissions are not configured. Please contact the site administrator.'
+    }
+    return error?.message || 'An unexpected database error occurred.'
+  }
 
   const loadMessages = async () => {
-    if (!u?.id) return
+    if (!u?.id) {
+      setLoading(false)
+      return
+    }
     const { data, error } = await supabase
       .from('support_messages')
       .select('id, sender_role, message, created_at')
@@ -352,20 +369,29 @@ export function Support({ u }) {
       .order('created_at', { ascending: true })
     if (error) {
       console.error('Support messages load error:', error)
-      return toast('Could not load support messages')
+      setChatError(supportErrorMessage(error))
+      setLoading(false)
+      return
     }
     setMessages(data || [])
+    setChatError('')
+    setLoading(false)
   }
 
   useEffect(() => {
+    setLoading(true)
     loadMessages()
     const timer = setInterval(loadMessages, 10000)
     return () => clearInterval(timer)
   }, [u?.id])
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, isOpen])
+
   async function send() {
     const message = draft.trim()
-    if (!message || sending || !u?.id) return
+    if (!message || sending || loading || chatError || !u?.id) return
     setSending(true)
     try {
       const { error } = await supabase.from('support_messages').insert({
@@ -386,31 +412,76 @@ export function Support({ u }) {
       }
 
       setDraft('')
+      setChatError('')
       await loadMessages()
     } catch (error) {
       console.error('Support message send error:', error)
-      toast('Could not send your message')
+      setChatError(supportErrorMessage(error))
     } finally {
       setSending(false)
     }
   }
 
   return (
-    <div className="card">
-      <b>Customer Support</b>
-      <p className="small">Send us a message and our team will reply here.</p>
-      <div style={{ minHeight: 220, maxHeight: 420, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, margin: '12px 0' }}>
-        {!messages.length && <p className="small" style={{ color: 'var(--mut)' }}>No messages yet.</p>}
-        {messages.map(item => (
-          <div key={item.id} style={{ alignSelf: item.sender_role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%', padding: '9px 11px', borderRadius: 10, background: item.sender_role === 'user' ? 'var(--ac)' : 'var(--c2)', color: item.sender_role === 'user' ? '#000' : 'inherit' }}>
-            <div style={{ fontSize: 13 }}>{item.message}</div>
-            <div className="small" style={{ marginTop: 4, opacity: 0.7 }}>{new Date(item.created_at).toLocaleString()}</div>
+    <div className="support-widget">
+      {isOpen && (
+        <section className="support-panel" aria-label="Customer support chat">
+          <div className="support-header">
+            <div className="support-avatar">♠</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <b>Royal Spin Support</b>
+              <div className="small" style={{ color: '#d3e6dc' }}>We’re here to help</div>
+            </div>
+            <button type="button" className="support-close" onClick={() => setIsOpen(false)} aria-label="Close support chat">×</button>
           </div>
-        ))}
-      </div>
-      <textarea value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Write your message..." rows={3} maxLength={2000} />
-      <button className="p" style={{ width: '100%', marginTop: 10 }} onClick={send} disabled={sending || !draft.trim()}>
-        {sending ? 'Sending...' : 'Send message'}
+          <div className="support-messages" aria-live="polite">
+            {!messages.length && !loading && !chatError && (
+              <div className="support-welcome">Hi! Send us a message and our team will get back to you here.</div>
+            )}
+            {loading && !messages.length && <div className="support-state">Loading conversation…</div>}
+            {messages.map(item => {
+              const fromPlayer = item.sender_role === 'user'
+              return (
+                <div key={item.id} className={'support-message ' + (fromPlayer ? 'support-message-player' : 'support-message-team')}>
+                  <div>{item.message}</div>
+                  <time>{new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
+                </div>
+              )
+            })}
+            {chatError && <div className="support-error" role="alert">{chatError}</div>}
+            <div ref={messagesEndRef} />
+          </div>
+          <form className="support-compose" onSubmit={(event) => { event.preventDefault(); send() }}>
+            <textarea
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault()
+                  send()
+                }
+              }}
+              placeholder="Type a message…"
+              rows={1}
+              maxLength={2000}
+              disabled={loading || !!chatError}
+              aria-label="Type a support message"
+            />
+            <button type="submit" className="support-send" disabled={sending || loading || !!chatError || !draft.trim()} aria-label="Send message">
+              {sending ? '…' : '➤'}
+            </button>
+          </form>
+        </section>
+      )}
+      <button
+        type="button"
+        className="support-launcher"
+        onClick={() => setIsOpen(open => !open)}
+        aria-expanded={isOpen}
+        aria-label={isOpen ? 'Close support chat' : 'Open support chat'}
+      >
+        {isOpen ? '×' : '✉'}
+        {!isOpen && <span>Support</span>}
       </button>
     </div>
   )

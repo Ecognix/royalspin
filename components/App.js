@@ -148,7 +148,7 @@ import { Wallet, Support, Vault, Wager, Bonus, Referral, Profile, Settings } fro
 
 const COMP = { dice: Dice, limbo: Limbo, mines: Mines, keno: Keno, flip: Flip, crash: Crash, color: Color }
 
-const MENU = [['home', 'Games'], ['wallet', 'Wallet'], ['support', 'Support'], ['vault', 'Vault'], ['wager', 'Wager'], ['bonus', 'Bonus'], ['referral', 'Refer & Earn'], ['profile', 'Profile'], ['settings', 'Settings']]
+const MENU = [['home', 'Games'], ['wallet', 'Wallet'], ['vault', 'Vault'], ['wager', 'Wager'], ['bonus', 'Bonus'], ['referral', 'Refer & Earn'], ['profile', 'Profile'], ['settings', 'Settings']]
 
 
 
@@ -939,8 +939,6 @@ function Main() {
 
         {view === 'wallet' && <Wallet u={u} me={me} />}
 
-        {view === 'support' && <Support u={u} />}
-
         {view === 'vault' && <Vault u={u} />}
 
         {view === 'wager' && <Wager u={u} me={me} />}
@@ -956,6 +954,8 @@ function Main() {
         {view === 'admin' && <Admin u={u} />}
 
       </main>
+
+      {!isAdmin && <Support u={u} />}
 
     </>
 
