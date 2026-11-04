@@ -612,6 +612,7 @@ const TABS = [
   { id: 'deposits', label: 'Deposits' },
   { id: 'withdrawals', label: 'Withdrawals' },
   { id: 'support', label: 'Support' },
+  { id: 'announcements', label: 'Announcements' },
   { id: 'wallet', label: 'UPI / QR' },
   { id: 'users', label: 'Users' },
   { id: 'bonus', label: 'Bonus' },
@@ -624,6 +625,9 @@ function Panel({ onOut }) {
   const [at, setAt] = useState('over')
   const [ap, setAp] = useState('')
   const [saving, setSaving] = useState(false)
+  const [announcementHeading, setAnnouncementHeading] = useState('')
+  const [announcementBody, setAnnouncementBody] = useState('')
+  const [savingAnnouncement, setSavingAnnouncement] = useState(false)
   const [userPage, setUserPage] = useState(0)
   const [depFilter, setDepFilter] = useState('all')
   const [withFilter, setWithFilter] = useState('all')
@@ -732,6 +736,54 @@ function Panel({ onOut }) {
     }
   }
 
+  const publishAnnouncement = async () => {
+    const heading = announcementHeading.trim()
+    const body = announcementBody.trim()
+    if (!heading || !body) return toast('Enter both an announcement heading and message')
+    if (heading.length > 120 || body.length > 3000) return toast('Announcement is too long')
+
+    setSavingAnnouncement(true)
+    try {
+      const current = Array.isArray(c.announcements) ? c.announcements : []
+      const announcement = {
+        id: typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        heading,
+        body,
+        active: true,
+        created_at: new Date().toISOString()
+      }
+      const nextConfig = { ...c, announcements: [announcement, ...current].slice(0, 100) }
+      const saved = await updateConfig(nextConfig)
+      if (!saved) {
+        toast('Could not publish announcement')
+        return
+      }
+      setC(nextConfig)
+      setAnnouncementHeading('')
+      setAnnouncementBody('')
+      toast('Announcement published')
+    } catch (error) {
+      console.error('Announcement publish error:', error)
+      toast('Could not publish announcement')
+    } finally {
+      setSavingAnnouncement(false)
+    }
+  }
+
+  const removeAnnouncement = async (id) => {
+    const current = Array.isArray(c.announcements) ? c.announcements : []
+    const nextConfig = { ...c, announcements: current.filter(item => item.id !== id) }
+    const saved = await updateConfig(nextConfig)
+    if (!saved) {
+      toast('Could not remove announcement')
+      return
+    }
+    setC(nextConfig)
+    toast('Announcement removed')
+  }
+
   // Update handlers
   const updateEdge = (game, val) => {
     setC(prev => ({
@@ -784,7 +836,7 @@ function Panel({ onOut }) {
 
       const { data: freshUser, error: userError } = await supabase
         .from('users')
-        .select('id,balance,bonus_needed')
+        .select('id,balance,bonus_balance,bonus_needed')
         .eq('id', userId)
         .maybeSingle()
       if (userError || !freshUser) {
@@ -824,7 +876,7 @@ function Panel({ onOut }) {
         for (let attempt = 0; attempt < 3 && !updated; attempt++) {
           const { data: latestUser, error: latestError } = await supabase
             .from('users')
-            .select('balance,bonus_needed')
+            .select('balance,bonus_balance,bonus_needed')
             .eq('id', userId)
             .maybeSingle()
           if (latestError || !latestUser) {
@@ -834,15 +886,17 @@ function Panel({ onOut }) {
           }
 
           const balance = Number(latestUser.balance || 0)
+          const bonusBalance = Number(latestUser.bonus_balance || 0)
           const wagerRemaining = Number(latestUser.bonus_needed || 0)
           const depositBonus = Number((reqAmount * DEPOSIT_APPROVAL_BONUS_PERCENT / 100).toFixed(2))
-          const credit = isDeposit ? reqAmount + depositBonus : reqAmount
+          const credit = reqAmount
           const nextBalance = balance + credit
           const updates = {
             balance: nextBalance,
             updated_at: new Date().toISOString()
           }
           if (isDeposit) {
+            updates.bonus_balance = bonusBalance + depositBonus
             updates.bonus_needed = wagerRemaining + reqAmount * DEPOSIT_WAGER_MULTIPLIER
           }
 
@@ -856,6 +910,11 @@ function Panel({ onOut }) {
           balanceQuery = latestUser.bonus_needed == null
             ? balanceQuery.is('bonus_needed', null)
             : balanceQuery.eq('bonus_needed', latestUser.bonus_needed)
+          if (isDeposit) {
+            balanceQuery = latestUser.bonus_balance == null
+              ? balanceQuery.is('bonus_balance', null)
+              : balanceQuery.eq('bonus_balance', latestUser.bonus_balance)
+          }
           const { data: changedUser, error: balanceError } = await balanceQuery
             .select('id')
             .maybeSingle()
@@ -879,23 +938,13 @@ function Panel({ onOut }) {
 
       let followUpWarning = ''
       if (isDeposit && ok) {
-        const depositBonus = Number((reqAmount * DEPOSIT_APPROVAL_BONUS_PERCENT / 100).toFixed(2))
-        const { error: transactionError } = await supabase.from('transactions').insert([
-          {
-            user_id: userId,
-            type: 'Deposit',
-            amount: reqAmount,
-            balance_after: updatedBalance - depositBonus,
-            details: { utr: r.upi_id || r.utr, request_id: id }
-          },
-          {
-            user_id: userId,
-            type: 'Deposit reward',
-            amount: depositBonus,
-            balance_after: updatedBalance,
-            details: { request_id: id }
-          }
-        ])
+        const { error: transactionError } = await supabase.from('transactions').insert({
+          user_id: userId,
+          type: 'Deposit',
+          amount: reqAmount,
+          balance_after: updatedBalance,
+          details: { utr: r.upi_id || r.utr, request_id: id }
+        })
         if (transactionError) {
           console.error('Deposit transaction log error:', transactionError)
           followUpWarning = 'Deposit credited, but its transaction log could not be saved.'
@@ -991,7 +1040,7 @@ function Panel({ onOut }) {
 
       if (isDeposit && ok) {
         const depositBonus = Number((reqAmount * DEPOSIT_APPROVAL_BONUS_PERCENT / 100).toFixed(2))
-        toast(followUpWarning || ('Deposit of ₹' + f(reqAmount) + ' approved; ₹' + f(reqAmount + depositBonus) + ' credited.'))
+        toast(followUpWarning || ('Deposit of ₹' + f(reqAmount) + ' approved; ₹' + f(depositBonus) + ' bonus is ready to claim.'))
       } else if (isWithdraw && !ok) {
         toast(followUpWarning || ('Withdrawal rejected & ₹' + f(reqAmount) + ' refunded'))
       } else if (isWithdraw && ok) {
@@ -1628,6 +1677,49 @@ function Panel({ onOut }) {
                 )}
               </div>
             </div>
+          )}
+
+          {at === 'announcements' && (
+            <section>
+              <b>Publish announcement</b>
+              <p className="small">Published messages appear in every player’s Announcements tab.</p>
+              <label>Heading</label>
+              <input
+                value={announcementHeading}
+                onChange={event => setAnnouncementHeading(event.target.value)}
+                maxLength={120}
+                placeholder="Announcement heading"
+              />
+              <label>Message</label>
+              <textarea
+                value={announcementBody}
+                onChange={event => setAnnouncementBody(event.target.value)}
+                rows={5}
+                maxLength={3000}
+                placeholder="Write the message players will see"
+              />
+              <button
+                className="p"
+                style={{ width: '100%', marginTop: 10 }}
+                onClick={publishAnnouncement}
+                disabled={savingAnnouncement || !announcementHeading.trim() || !announcementBody.trim()}
+              >
+                {savingAnnouncement ? 'Publishing…' : 'Publish announcement'}
+              </button>
+
+              <h3 style={{ marginTop: 20 }}>Published announcements</h3>
+              {(Array.isArray(c.announcements) ? c.announcements : []).map(announcement => (
+                <article key={announcement.id} style={{ marginTop: 8, padding: 12, borderRadius: 10, background: 'var(--c2)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                    <b>{announcement.heading}</b>
+                    <button className="d" onClick={() => removeAnnouncement(announcement.id)} style={{ padding: '5px 9px' }}>Delete</button>
+                  </div>
+                  <p className="small" style={{ whiteSpace: 'pre-wrap' }}>{announcement.body}</p>
+                  <small className="small">{new Date(announcement.created_at).toLocaleString()}</small>
+                </article>
+              ))}
+              {!c.announcements?.length && <p className="small">No announcements have been published.</p>}
+            </section>
           )}
 
           {/* TAB 5: WALLET / UPI SETTINGS */}

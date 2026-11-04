@@ -3,7 +3,8 @@ import { useState, useEffect, useRef } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { 
   db, toast, f, createRequest, refreshUser, changePassword,
-  supabase, REFERRAL_REWARD_PERCENT, BET_FEE_WAGER_STEP, BET_FEE_AMOUNT, MIN_WITHDRAWAL_AMOUNT
+  supabase, REFERRAL_REWARD_PERCENT, DEPOSIT_APPROVAL_BONUS_PERCENT,
+  BET_FEE_WAGER_STEP, BET_FEE_AMOUNT, MIN_WITHDRAWAL_AMOUNT
 } from '../lib/supabase-db'
 import { GAMES } from './meta'
 
@@ -395,20 +396,26 @@ function RewardsLanding({ u, onNavigate, title }) {
     let active = true
     async function loadTodayBonus() {
       const { start, end } = getIndiaPeriodRange('today')
-      const { data, error } = await supabase
-        .from('transactions')
-        .select('amount')
-        .eq('user_id', u.id)
-        .in('type', ['Deposit reward', 'Referral reward'])
-        .gte('created_at', start)
-        .lt('created_at', end)
+      const [depositResult, referralResult] = await Promise.all([
+        supabase.from('requests').select('amount')
+          .eq('user_id', u.id).eq('type', 'deposit').eq('status', 'approved')
+          .gte('updated_at', start).lt('updated_at', end),
+        supabase.from('transactions').select('amount')
+          .eq('user_id', u.id).eq('type', 'Referral reward')
+          .gte('created_at', start).lt('created_at', end)
+      ])
       if (!active) return
-      if (error) {
-        console.error('Today bonus load error:', error)
+      if (depositResult.error || referralResult.error) {
+        console.error('Today bonus load error:', depositResult.error || referralResult.error)
         setBonusError('Could not load today’s bonus.')
         return
       }
-      setTodayBonus((data || []).reduce((total, row) => total + Math.max(0, Number(row.amount || 0)), 0))
+      const depositBonuses = (depositResult.data || []).reduce(
+        (total, row) => total + Number((Number(row.amount || 0) * DEPOSIT_APPROVAL_BONUS_PERCENT / 100).toFixed(2)),
+        0
+      )
+      const referralBonuses = (referralResult.data || []).reduce((total, row) => total + Math.max(0, Number(row.amount || 0)), 0)
+      setTodayBonus(depositBonuses + referralBonuses)
       setBonusError('')
     }
     loadTodayBonus()
@@ -588,6 +595,7 @@ export function ActivityHistory({ u, initialTab = 'bets' }) {
               loss: 'Loss',
               refund: 'Refund',
               'deposit reward': 'Deposit reward',
+              'deposit bonus claim': 'Deposit bonus claimed',
               'referral reward': 'Referral reward',
               withdraw_hold: 'Withdrawal hold',
               withdraw_hold_refunded: 'Withdrawal refunded',
@@ -742,10 +750,11 @@ export function GameStatistics({ u, onBack }) {
   )
 }
 
-export function AccountHub({ u, isAdmin, onWallet, onActivity, onNavigate, onSupport, onLogout }) {
+export function AccountHub({ u, isAdmin, onWallet, onActivity, onNavigate, onMessages, onSupport, onLogout }) {
   const comingSoon = () => toast('Coming soon')
   const accountOptions = [
-    { icon: 'notifications', label: 'Notifications', action: comingSoon },
+    { icon: 'notifications', label: 'Notifications', action: () => onMessages('notifications') },
+    { icon: 'announcement', label: 'Announcements', action: () => onMessages('announcements') },
     { icon: 'gift', label: 'Gifts', action: comingSoon },
     { icon: 'coupon', label: 'Top-up coupons', action: comingSoon },
     { icon: 'chart', label: 'Game statistics', action: () => onNavigate('gameStats') },
@@ -754,7 +763,6 @@ export function AccountHub({ u, isAdmin, onWallet, onActivity, onNavigate, onSup
   const services = [
     { icon: 'settings', label: 'Settings', action: () => onNavigate('settings') },
     { icon: 'feedback', label: 'Feedback', action: comingSoon },
-    { icon: 'announcement', label: 'Announcements', action: comingSoon },
     { icon: 'support', label: 'Customer service', action: onSupport },
     { icon: 'guide', label: 'Beginner guide', action: comingSoon },
     { icon: 'about', label: 'About Royal Spin', action: comingSoon }
@@ -1037,10 +1045,218 @@ export function Wager({ u, me }) {
 }
 
 export function Bonus({ u }) {
+  const [claiming, setClaiming] = useState(false)
+
+  async function claimBonus() {
+    if (claiming) return
+    setClaiming(true)
+    try {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { data: latestUser, error: loadError } = await supabase
+          .from('users')
+          .select('balance,bonus_balance')
+          .eq('id', u.id)
+          .maybeSingle()
+        if (loadError || !latestUser) {
+          console.error('Bonus claim balance lookup error:', loadError)
+          toast('Could not load your bonus balance. Please try again.')
+          return
+        }
+
+        const amount = Number(latestUser.bonus_balance || 0)
+        if (!(amount > 0)) {
+          await refreshUser()
+          toast('No deposit bonus is available to claim')
+          return
+        }
+
+        const balance = Number(latestUser.balance || 0)
+        const nextBalance = Number((balance + amount).toFixed(2))
+        let claimQuery = supabase
+          .from('users')
+          .update({ balance: nextBalance, bonus_balance: 0, updated_at: new Date().toISOString() })
+          .eq('id', u.id)
+        claimQuery = latestUser.balance == null
+          ? claimQuery.is('balance', null)
+          : claimQuery.eq('balance', latestUser.balance)
+        claimQuery = latestUser.bonus_balance == null
+          ? claimQuery.is('bonus_balance', null)
+          : claimQuery.eq('bonus_balance', latestUser.bonus_balance)
+        const { data: claimedUser, error: claimError } = await claimQuery.select('id').maybeSingle()
+        if (claimError) {
+          console.error('Bonus claim update error:', claimError)
+          toast('Could not claim your bonus. Please try again.')
+          return
+        }
+        if (!claimedUser) continue
+
+        const { error: transactionError } = await supabase.from('transactions').insert({
+          user_id: u.id,
+          type: 'Deposit bonus claim',
+          amount,
+          balance_after: nextBalance,
+          details: { source: 'deposit_bonus_claim' }
+        })
+        await refreshUser()
+        if (transactionError) {
+          console.error('Bonus claim transaction log error:', transactionError)
+          toast('Bonus claimed, but the transaction history could not be saved.')
+        } else {
+          toast('₹' + f(amount) + ' bonus claimed to your wallet')
+        }
+        return
+      }
+
+      toast('Your bonus changed while claiming. Please try again.')
+    } catch (error) {
+      console.error('Bonus claim error:', error)
+      toast('Could not claim your bonus. Please try again.')
+    } finally {
+      setClaiming(false)
+    }
+  }
+
   return (
-    <div className="card"><b>Bonus Balance</b>
-      <div className="big">₹{f(u.bonus_balance || 0)}</div>
-      <p className="small">No deposit or welcome bonus is added to this balance.</p>
+    <div className="bonus-details-page">
+      <div className="page-title"><div><h2>Bonus details</h2><p>Claim your approved deposit bonus.</p></div></div>
+      <section className="bonus-claim-card">
+        <span className="bonus-claim-icon"><HubIcon name="bonus" /></span>
+        <small>Available to claim</small>
+        <strong>₹{f(u.bonus_balance || 0)}</strong>
+        <p>Deposit bonuses are kept here until you claim them to your wallet.</p>
+        <button className="wallet-submit" onClick={claimBonus} disabled={claiming || Number(u.bonus_balance || 0) <= 0}>
+          {claiming ? 'Claiming…' : Number(u.bonus_balance || 0) > 0 ? 'Claim bonus' : 'No bonus available'}
+        </button>
+      </section>
+    </div>
+  )
+}
+
+export function NotificationCenter({ u, announcements = [], initialTab = 'notifications' }) {
+  const [tab, setTab] = useState(initialTab)
+  const [requests, setRequests] = useState([])
+  const [transactions, setTransactions] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+
+  useEffect(() => {
+    setTab(initialTab)
+  }, [initialTab])
+
+  useEffect(() => {
+    if (!u?.id) return
+    let active = true
+    async function loadMessages() {
+      setLoading(true)
+      setLoadError('')
+      try {
+        const [requestResult, transactionResult] = await Promise.all([
+          supabase.from('requests').select('id,type,amount,status,created_at,updated_at')
+            .eq('user_id', u.id).in('type', ['deposit', 'withdraw']).order('updated_at', { ascending: false }).limit(100),
+          supabase.from('transactions').select('id,type,amount,created_at')
+            .eq('user_id', u.id).order('created_at', { ascending: false }).limit(100)
+        ])
+        if (!active) return
+        if (requestResult.error) console.error('Notification request load error:', requestResult.error)
+        if (transactionResult.error) console.error('Notification transaction load error:', transactionResult.error)
+        setRequests(requestResult.data || [])
+        setTransactions(transactionResult.data || [])
+        setLoadError(requestResult.error || transactionResult.error ? 'Some notifications could not be loaded.' : '')
+      } catch (error) {
+        console.error('Notification load error:', error)
+        if (active) setLoadError('Could not load notifications. Please try again.')
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+    loadMessages()
+    return () => { active = false }
+  }, [u?.id])
+
+  const requestNotifications = requests
+    .filter(request => ['approved', 'rejected'].includes(String(request.status || '').toLowerCase()))
+    .map(request => {
+      const type = String(request.type).toLowerCase()
+      const status = String(request.status).toLowerCase()
+      const amount = Number(request.amount || 0)
+      const isDeposit = type === 'deposit'
+      const heading = `${isDeposit ? 'Deposit' : 'Withdrawal'} ${status}`
+      const body = status === 'approved'
+        ? isDeposit
+          ? `Your deposit of ₹${f(amount)} was approved.`
+          : `Your withdrawal request for ₹${f(amount)} was approved.`
+        : `Your ${isDeposit ? 'deposit' : 'withdrawal'} request for ₹${f(amount)} was rejected.`
+      return { id: `request-${request.id}`, heading, body, created_at: request.updated_at || request.created_at }
+    })
+  const transactionNotifications = transactions.flatMap(transaction => {
+    const type = String(transaction.type || '').toLowerCase()
+    const amount = Number(transaction.amount || 0)
+    if (type === 'referral reward') {
+      return [{ id: `transaction-${transaction.id}`, heading: 'Referral reward', body: `₹${f(amount)} referral reward was added to your wallet.`, created_at: transaction.created_at }]
+    }
+    if (type === 'deposit bonus claim') {
+      return [{ id: `transaction-${transaction.id}`, heading: 'Deposit bonus claimed', body: `₹${f(amount)} deposit bonus was claimed to your wallet.`, created_at: transaction.created_at }]
+    }
+    if (type === 'deposit reward') {
+      return [{ id: `transaction-${transaction.id}`, heading: 'Deposit bonus credited', body: `₹${f(amount)} deposit bonus was credited to your wallet.`, created_at: transaction.created_at }]
+    }
+    return []
+  })
+  const notifications = [
+    {
+      id: 'welcome',
+      heading: 'Welcome to Royal Spin',
+      body: 'Thanks for joining us. Explore the games, review your account activity, and contact support whenever you need help.',
+      created_at: u.created_at || new Date().toISOString()
+    },
+    ...[
+    ...(Number(u.bonus_balance || 0) > 0 ? [{
+      id: 'claimable-bonus',
+      heading: 'Deposit bonus available',
+      body: `₹${f(u.bonus_balance)} is ready to claim from Bonus details.`,
+      created_at: new Date().toISOString()
+    }] : []),
+    ...requestNotifications,
+    ...transactionNotifications
+    ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  ]
+  const activeAnnouncements = (Array.isArray(announcements) ? announcements : [])
+    .filter(announcement => announcement && announcement.active !== false)
+    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+
+  return (
+    <div className="notification-page">
+      <div className="page-title"><div><h2>{tab === 'notifications' ? 'Notification' : 'Announcements'}</h2><p>Updates about your account and Royal Spin.</p></div></div>
+      <div className="notification-tabs" role="tablist" aria-label="Messages">
+        <button type="button" role="tab" aria-selected={tab === 'notifications'} className={tab === 'notifications' ? 'selected' : ''} onClick={() => setTab('notifications')}>Notifications</button>
+        <button type="button" role="tab" aria-selected={tab === 'announcements'} className={tab === 'announcements' ? 'selected' : ''} onClick={() => setTab('announcements')}>Announcements</button>
+      </div>
+      {loadError && tab === 'notifications' && <p className="page-error">{loadError}</p>}
+      <div className="notification-list">
+        {tab === 'notifications' ? (
+          <>
+            {notifications.map(item => (
+              <article className="notification-card" key={item.id}>
+                <div className="notification-card-heading"><span><HubIcon name="notifications" /></span><b>{item.heading}</b></div>
+                <p>{item.body}</p>
+                <time>{new Date(item.created_at).toLocaleString()}</time>
+              </article>
+            ))}
+            {loading && <div className="activity-empty">Loading notifications…</div>}
+          </>
+        ) : (
+          <>
+            {activeAnnouncements.map(item => (
+              <article className="notification-card announcement-card" key={item.id}>
+                <div className="notification-card-heading"><span><HubIcon name="announcement" /></span><b>{item.heading}</b></div>
+                <p>{item.body}</p>
+                {item.created_at && <time>{new Date(item.created_at).toLocaleString()}</time>}
+              </article>
+            ))}
+            {!activeAnnouncements.length && <div className="activity-empty">No announcements at this time.</div>}
+          </>
+        )}
+      </div>
     </div>
   )
 }

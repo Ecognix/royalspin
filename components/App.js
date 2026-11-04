@@ -142,7 +142,7 @@ import { GAMES, ICON } from './meta'
 
 import { Dice, Limbo, Mines, Keno, Flip, Crash, Color } from './Games'
 
-import { Wallet, Support, Activity, ActivityHistory, GameStatistics, AccountHub, PromotionHub, HubIcon, Vault, Wager, Bonus, Referral, Profile, Settings } from './Pages'
+import { Wallet, Support, Activity, ActivityHistory, GameStatistics, NotificationCenter, AccountHub, PromotionHub, HubIcon, Vault, Wager, Bonus, Referral, Profile, Settings } from './Pages'
 
 
 
@@ -776,6 +776,7 @@ function Main() {
   const [amt, setAmt] = useState(10)
   const [walletTab, setWalletTab] = useState('d')
   const [activityTab, setActivityTab] = useState('bets')
+  const [messageTab, setMessageTab] = useState('notifications')
 
   useEffect(() => {
     const iv1 = setInterval(tick, 200)
@@ -854,6 +855,11 @@ function Main() {
     go('history')
   }
 
+  const openMessages = (tab = 'notifications') => {
+    setMessageTab(tab)
+    go('messages')
+  }
+
   const openSupport = () => {
     window.dispatchEvent(new CustomEvent('rs-open-support'))
   }
@@ -886,7 +892,7 @@ function Main() {
           <button className="player-balance" type="button" onClick={() => openWallet('d')}>
             <span>Total balance</span><b>{u.hide_balance ? '••••' : `₹${f(u.balance)}`}</b>
           </button>
-          <button className="player-account-button" type="button" onClick={() => go('account')} aria-label="Account"><HubIcon name="account" /></button>
+          <button className="player-account-button" type="button" onClick={() => openMessages('notifications')} aria-label="Notifications and announcements"><HubIcon name="notifications" /></button>
         </div>
 
       </header>}
@@ -951,6 +957,8 @@ function Main() {
 
         {view === 'bonus' && <Bonus u={u} />}
 
+        {view === 'messages' && <NotificationCenter u={u} announcements={cfg.announcements || []} initialTab={messageTab} />}
+
         {view === 'referral' && <Referral u={u} />}
 
         {view === 'profile' && <Profile u={u} me={me} />}
@@ -974,6 +982,7 @@ function Main() {
             onWallet={openWallet}
             onActivity={openActivity}
             onNavigate={go}
+            onMessages={openMessages}
             onSupport={openSupport}
             onLogout={logout}
           />
@@ -997,7 +1006,7 @@ function Main() {
                 ? view === 'activity'
                 : destination === 'promotion'
                   ? ['promotion', 'referral'].includes(view)
-                  : ['account', 'wallet', 'vault', 'wager', 'bonus', 'profile', 'settings', 'history', 'gameStats'].includes(view)
+                  : ['account', 'wallet', 'vault', 'wager', 'bonus', 'profile', 'settings', 'history', 'gameStats', 'messages'].includes(view)
             return (
               <button key={destination} className={active ? 'active' : ''} onClick={() => go(destination)}>
                 <span><HubIcon name={icon} /></span><small>{label}</small>
