@@ -338,6 +338,84 @@ export function Wallet({ u, me }) {
   )
 }
 
+export function Support({ u }) {
+  const [messages, setMessages] = useState([])
+  const [draft, setDraft] = useState('')
+  const [sending, setSending] = useState(false)
+
+  const loadMessages = async () => {
+    if (!u?.id) return
+    const { data, error } = await supabase
+      .from('support_messages')
+      .select('id, sender_role, message, created_at')
+      .eq('user_id', u.id)
+      .order('created_at', { ascending: true })
+    if (error) {
+      console.error('Support messages load error:', error)
+      return toast('Could not load support messages')
+    }
+    setMessages(data || [])
+  }
+
+  useEffect(() => {
+    loadMessages()
+    const timer = setInterval(loadMessages, 10000)
+    return () => clearInterval(timer)
+  }, [u?.id])
+
+  async function send() {
+    const message = draft.trim()
+    if (!message || sending || !u?.id) return
+    setSending(true)
+    try {
+      const { error } = await supabase.from('support_messages').insert({
+        user_id: u.id,
+        sender_role: 'user',
+        message
+      })
+      if (error) throw error
+
+      const hasAutoReply = messages.some(item => item.sender_role === 'system')
+      if (!hasAutoReply) {
+        const { error: autoReplyError } = await supabase.from('support_messages').insert({
+          user_id: u.id,
+          sender_role: 'system',
+          message: 'Please wait while our support team reviews your message and responds.'
+        })
+        if (autoReplyError) throw autoReplyError
+      }
+
+      setDraft('')
+      await loadMessages()
+    } catch (error) {
+      console.error('Support message send error:', error)
+      toast('Could not send your message')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="card">
+      <b>Customer Support</b>
+      <p className="small">Send us a message and our team will reply here.</p>
+      <div style={{ minHeight: 220, maxHeight: 420, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, margin: '12px 0' }}>
+        {!messages.length && <p className="small" style={{ color: 'var(--mut)' }}>No messages yet.</p>}
+        {messages.map(item => (
+          <div key={item.id} style={{ alignSelf: item.sender_role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%', padding: '9px 11px', borderRadius: 10, background: item.sender_role === 'user' ? 'var(--ac)' : 'var(--c2)', color: item.sender_role === 'user' ? '#000' : 'inherit' }}>
+            <div style={{ fontSize: 13 }}>{item.message}</div>
+            <div className="small" style={{ marginTop: 4, opacity: 0.7 }}>{new Date(item.created_at).toLocaleString()}</div>
+          </div>
+        ))}
+      </div>
+      <textarea value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Write your message..." rows={3} maxLength={2000} />
+      <button className="p" style={{ width: '100%', marginTop: 10 }} onClick={send} disabled={sending || !draft.trim()}>
+        {sending ? 'Sending...' : 'Send message'}
+      </button>
+    </div>
+  )
+}
+
 export function Vault({ u }) {
   const [a, setA] = useState('')
   async function move(lock) {

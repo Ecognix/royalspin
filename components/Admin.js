@@ -611,6 +611,7 @@ const TABS = [
   { id: 'games', label: 'Games' },
   { id: 'deposits', label: 'Deposits' },
   { id: 'withdrawals', label: 'Withdrawals' },
+  { id: 'support', label: 'Support' },
   { id: 'wallet', label: 'UPI / QR' },
   { id: 'users', label: 'Users' },
   { id: 'bonus', label: 'Bonus' },
@@ -648,6 +649,10 @@ function Panel({ onOut }) {
   const [usersData, setUsersData] = useState({})
   const [betsData, setBetsData] = useState([])
   const [reqsData, setReqsData] = useState([])
+  const [supportMessages, setSupportMessages] = useState([])
+  const [supportUserId, setSupportUserId] = useState(null)
+  const [supportReply, setSupportReply] = useState('')
+  const [sendingSupportReply, setSendingSupportReply] = useState(false)
   const [statBets, setStatBets] = useState([])
   const [dayPage, setDayPage] = useState(0)
   const [dayPageSize, setDayPageSize] = useState(10)
@@ -665,6 +670,18 @@ function Panel({ onOut }) {
       rows.push(...(data || []))
       if (!data || data.length < 1000) break
     }
+
+    const fetchSupportMessages = async () => {
+      const { data, error } = await supabase
+        .from('support_messages')
+        .select('id, user_id, sender_role, message, created_at, users:user_id(phone,name)')
+        .order('created_at', { ascending: true })
+      if (error) {
+        console.error('fetchSupportMessages error:', error)
+        return
+      }
+      setSupportMessages(data || [])
+    }
     setStatBets(rows)
   }
 
@@ -681,6 +698,7 @@ function Panel({ onOut }) {
       setBetsData(bets || [])
       setReqsData(reqs || [])
       await fetchStatBets()
+      await fetchSupportMessages()
     } catch (err) {
       console.error('fetchAdminData error:', err)
     }
@@ -1044,6 +1062,28 @@ function Panel({ onOut }) {
         return
       }
 
+      const sendSupportReply = async () => {
+        const message = supportReply.trim()
+        if (!supportUserId || !message || sendingSupportReply) return
+        setSendingSupportReply(true)
+        try {
+          const { error } = await supabase.from('support_messages').insert({
+            user_id: supportUserId,
+            sender_role: 'admin',
+            message
+          })
+          if (error) {
+            console.error('Support reply error:', error)
+            toast('Could not send support reply')
+            return
+          }
+          setSupportReply('')
+          await fetchSupportMessages()
+        } finally {
+          setSendingSupportReply(false)
+        }
+      }
+
       setReqsData(prev => prev.map(request => request.id === requestId
         ? { ...request, upi_id: details, updated_at: new Date().toISOString() }
         : request
@@ -1056,6 +1096,17 @@ function Panel({ onOut }) {
   }
 
   const players = Object.keys(usersData)
+  const supportConversations = Object.values(supportMessages.reduce((groups, message) => {
+    const current = groups[message.user_id] || { userId: message.user_id, messages: [] }
+    current.messages.push(message)
+    groups[message.user_id] = current
+    return groups
+  }, {})).sort((a, b) => {
+    const aLast = a.messages[a.messages.length - 1]?.created_at || ''
+    const bLast = b.messages[b.messages.length - 1]?.created_at || ''
+    return aLast < bLast ? 1 : -1
+  })
+  const selectedSupport = supportConversations.find(conversation => conversation.userId === supportUserId) || null
   const vol = statBets.reduce((s, x) => s + (Number(x.amount) || 0), 0)
   const profit = statBets.reduce((s, x) => s + (Number(x.amount) || 0) - (Number(x.win_amount) || 0), 0)
 
@@ -1529,6 +1580,54 @@ function Panel({ onOut }) {
                 filteredWithdrawals.map(r => renderRequestCard(r, false))
               )}
             </>
+          )}
+
+          {/* TAB 5: SUPPORT */}
+          {at === 'support' && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 0.8fr) minmax(260px, 1.5fr)', gap: 12 }}>
+              <div>
+                <b>Inbox ({supportConversations.length})</b>
+                <div style={{ marginTop: 10 }}>
+                  {!supportConversations.length && <p className="small">No support messages yet.</p>}
+                  {supportConversations.map(conversation => {
+                    const latest = conversation.messages[conversation.messages.length - 1]
+                    const phone = latest.users?.phone || 'Unknown user'
+                    const name = latest.users?.name
+                    return (
+                      <button
+                        key={conversation.userId}
+                        onClick={() => setSupportUserId(conversation.userId)}
+                        style={{ width: '100%', textAlign: 'left', padding: 10, marginBottom: 6, background: conversation.userId === supportUserId ? 'var(--ac)' : 'var(--c2)', color: conversation.userId === supportUserId ? '#000' : 'inherit', borderRadius: 8 }}
+                      >
+                        <div style={{ fontWeight: 700 }}>{name ? `${name} · ${phone}` : phone}</div>
+                        <div className="small" style={{ color: conversation.userId === supportUserId ? '#000' : 'var(--mut)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{latest.message}</div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              <div>
+                {!selectedSupport ? (
+                  <p className="small">Select a conversation to view and reply.</p>
+                ) : (
+                  <>
+                    <b>{selectedSupport.messages[0]?.users?.name || 'User'} · {selectedSupport.messages[0]?.users?.phone || 'Unknown number'}</b>
+                    <div style={{ minHeight: 260, maxHeight: 460, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, margin: '10px 0' }}>
+                      {selectedSupport.messages.map(message => (
+                        <div key={message.id} style={{ alignSelf: message.sender_role === 'user' ? 'flex-start' : 'flex-end', maxWidth: '85%', padding: '9px 11px', borderRadius: 10, background: message.sender_role === 'user' ? 'var(--c2)' : 'var(--ac)', color: message.sender_role === 'user' ? 'inherit' : '#000' }}>
+                          <div style={{ fontSize: 13 }}>{message.message}</div>
+                          <div className="small" style={{ marginTop: 4, opacity: 0.7 }}>{message.sender_role} · {new Date(message.created_at).toLocaleString()}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <textarea value={supportReply} onChange={(e) => setSupportReply(e.target.value)} placeholder="Write a reply..." rows={3} maxLength={2000} />
+                    <button className="p" style={{ width: '100%', marginTop: 8 }} onClick={sendSupportReply} disabled={sendingSupportReply || !supportReply.trim()}>
+                      {sendingSupportReply ? 'Sending...' : 'Reply'}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
           )}
 
           {/* TAB 5: WALLET / UPI SETTINGS */}
